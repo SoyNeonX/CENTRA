@@ -1,0 +1,20 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+.pytest_cache/
+.ruff_cache/
+pc/logs/*.csv
+pc/logs/*.png
+# PlatformIO
+.pio/
+.pioenvs/
+.piolibdeps/
+# Archivos de prueba locales
+screenshot*.png
+pc/smoke_*.txt
+# Editores y sistema
+.vscode/
+.idea/
+Thumbs.db
+desktop.ini
