@@ -219,10 +219,13 @@ simple y segura; todos son cambiables en configuración o están documentados.
   con la X no tumbe la aplicación.
 - Se corrigió el caso en que cancelar el asistente de ejes dejaba la GUI sin
   procesar teclas.
+- Se corrigió el asistente de ejes para que calcule los valores absolutos de
+  `SERVO_INVERT_*` a partir de los flags actuales, en vez de invertirlos siempre.
 - Se agregó un límite de coordenadas al clic del mouse para no tomar clics sobre las
   trackbars como setpoints.
 - Se aumentó la altura del panel de estado para que no se corte la línea de latencia.
 - Se agregó flush por fila al CSV.
+- Se protegió la lectura de cámara contra un error de OpenCV durante la desconexión.
 - Se revisaron signos, grados/radianes y límites de servo en firmware y simulación.
 - Se compiló el firmware con y sin IMU.
 

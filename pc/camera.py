@@ -93,7 +93,11 @@ class CameraThread:
 
             consecutive_errors = 0
             while not self._stop_event.is_set():
-                ok, frame = capture.read()
+                try:
+                    ok, frame = capture.read()
+                except cv2.error:
+                    self._set_status("La cámara generó un error de lectura")
+                    break
                 if not ok or frame is None:
                     consecutive_errors += 1
                     if consecutive_errors >= 5:
