@@ -1,0 +1,26 @@
+FIRMWARE PRECOMPILADO - PLATAFORMA ESTABILIZADORA DE PELOTA
+============================================================
+
+Version de firmware: 1.0.0
+Placa: ESP32 DevKit (board esp32dev, 4 MB flash)
+Framework: PlatformIO espressif32 8.0.0 / Arduino 3.3.12
+Libreria externa: ESP32Servo 3.2.1
+Compilado con: USE_IMU = 0 (IMU desactivada)
+Archivo: plataforma_pelota_esp32.bin
+Formato: binario fusionado (bootloader + tabla de particiones + aplicacion)
+Direccion de grabacion: 0x0
+Tamano: 413360 bytes
+SHA256: 79121f9d8bd39610799519aa33b53c01af75f11a2ce21d5974ffbde8b8009cf1
+
+NO hace falta PlatformIO en la PC de la escuela para usar este archivo.
+Se graba con SUBIR_FIRMWARE.bat, que usa esptool y pregunta el puerto COM.
+
+Si modificas firmware/include/config.h (por ejemplo para activar USE_IMU=1,
+cambiar SERVO_INVERT_X/Y o los pines), tenes que recompilar con PlatformIO:
+
+    cd firmware
+    pio run
+    pio run -t upload
+
+En la PC de desarrollo tambien podes usar
+COMPILAR_Y_SUBIR_CON_PLATFORMIO.bat.

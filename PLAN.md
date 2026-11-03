@@ -49,11 +49,14 @@ Cámara del celular ──> camera.py ──> vision.py ──> main.py ──> 
 | F | Simulación e integración cerrada | Completada | La pelota converge en simulación; se abrió la ventana y se inspeccionó |
 | G | Documentación para principiante | Completada | README, cableado, protocolo y pruebas de hardware |
 | H | Autorrevisión de signos, unidades, límites, hilos y bloqueos | Completada | Correcciones y ejecución final de todo lo verificable |
+| I | Selector visual de cámara y puerto serial | Completada | Selector abierto y probado; lógica cubierta con pytest |
+| J | Instalador Windows, firmware precompilado y paquete offline | Completada | Instalador ejecutado en modo offline; flasheo probado en dry-run |
 
 El repositorio git se inicializó al final del trabajo (al comienzo no existía en la
 carpeta de trabajo) y los archivos se agruparon en commits lógicos por fase al
-cerrar la fase H. El entorno de desarrollo usó el Python global y PlatformIO Core
-instalado con pip; las instrucciones para el usuario sí crean un entorno virtual.
+cerrar la fase H. Las fases I y J se agregaron después, a pedido del usuario, y se
+documentaron en nuevos commits. El entorno de desarrollo usó el Python global y
+PlatformIO Core instalado con pip; el instalador crea un entorno virtual por PC.
 
 ## 4. Supuestos tomados
 
@@ -142,6 +145,25 @@ simple y segura; todos son cambiables en configuración o están documentados.
 22. **Logger.** El CSV se escribe con flush por fila para poder inspeccionarlo en
     vivo y no perder datos si la app se cierra de golpe. Está en `pc/logs/`, que no
     se versiona.
+23. **Selector de dispositivos.** No prueba las cámaras al abrir (podría bloquear
+    o chocar con la cámara en uso). Lista índices y puertos COM, permite una URL y
+    guarda `config.json`; al aplicar desde la app se reinicia el proceso de forma
+    interna para reabrir cámara y enlace. En el primer arranque real se muestra
+    automáticamente si `setup_completed` es `false`.
+24. **Paquete offline.** Se prepara para **Python 3.12 x64** porque las ruedas de
+    NumPy/OpenCV son específicas de la versión y arquitectura. El instalador
+    detecta Python 3.12, crea `pc/.venv` y usa `paquete/wheels` sin internet. El
+    paquete incluye el instalador oficial de Python 3.12.10 x64. La carpeta
+    `paquete/` no se versiona en git (es generada y pesada).
+25. **Firmware precompilado.** Se entrega un binario fusionado de 413 360 bytes
+    para grabar en `0x0`, generado con `USE_IMU=0` y PlatformIO espressif32 8.0.0.
+    Si se modifica `config.h` o el código, el binario queda desactualizado y hay que
+    recompilar. La herramienta `pc/tools/flash_firmware.py` usa esptool, no
+    PlatformIO, para que la PC de la escuela no necesite el toolchain.
+26. **Instalador.** Los `.bat` son envoltorios de PowerShell; no requieren admin y
+    evitan que el alumno tenga que escribir comandos. El instalador reutiliza el
+    entorno virtual solo si funciona en esa PC; si fue copiado de otra máquina, lo
+    recrea.
 
 ## 5. Riesgos y mitigaciones
 
@@ -200,15 +222,20 @@ simple y segura; todos son cambiables en configuración o están documentados.
 
 | Verificación | Resultado |
 |---|---|
-| `python -m pytest -q` desde `pc/` | **78 passed** |
+| `python -m pytest -q` desde `pc/` | **82 passed** |
 | `pio test -e native` desde `firmware/` | **11 test cases: 11 succeeded** |
 | `pio run` para `esp32dev` | **SUCCESS**; RAM 7,0 %, flash 26,0 % con IMU apagada |
 | `pio run` con `USE_IMU=1` | **SUCCESS**; compila la rama real de Wire/MPU6050 |
 | Integración de convergencia | ≈**1,23 s** para entrar en tolerancia (límite de test 12 s) |
 | Tiempo estable requerido | `|x|<0,05` y `|y|<0,05` durante 1 s |
 | `python main.py --sim` | Abrió ventana OpenCV 656×639; se capturó e inspeccionó el cuadro, con la pelota centrada a los 4 s |
+| Selector de dispositivos | Ventana 1016×689 abierta e inspeccionada; guarda y normaliza con tests |
+| Instalador offline | Ejecutado con 32 ruedas locales y Python 3.12.10 incluido; venv creado y dependencias verificadas (OpenCV, NumPy, pyserial, esptool) |
+| Paquete para pendrive | **106,2 MB**, 32 wheels, instalador de Python incluido |
+| Firmware precompilado | **413 360 bytes**, SHA256 `79121f9d…9cf1`; merge verificado |
+| Flasheo | `--dry-run` verificado con el comando de esptool; no se grabó hardware real |
 | CSV | Se generaron y leyeron archivos de telemetría reales del simulador |
-| `tools/plot_log.py --save` | Generó un PNG de 97 874 bytes a partir del CSV |
+| `tools/plot_log.py --save` | Generó un PNG de 92 927 bytes a partir del CSV |
 | Cámara/ESP32/servos/LED/buzzer/IMU reales | **No probados** (no hay hardware disponible) |
 
 ### Correcciones hechas en la autorrevisión
@@ -228,9 +255,17 @@ simple y segura; todos son cambiables en configuración o están documentados.
 - Se protegió la lectura de cámara contra un error de OpenCV durante la desconexión.
 - Se revisaron signos, grados/radianes y límites de servo en firmware y simulación.
 - Se compiló el firmware con y sin IMU.
+- Se validó el selector de dispositivos sin abrir las cámaras y se agregó
+  reinicio interno de la app al guardar cambios.
+- Se agregó validación de que el entorno virtual copiado funcione en la nueva PC;
+  si no, el instalador lo recrea.
+- Se verificó que la instalación offline desde `paquete/wheels` funciona y que el
+  flash tool construye el comando correcto con esptool 5.6.
 
 ### Pendiente de hardware
 
 Todo lo listado en la sección 7 y en `HARDWARE_TEST.md`. En particular: sentido
 físico, centro mecánico, alimentación real, detección bajo luz real, ajuste del PID
-y pruebas de LED/buzzer/IMU/fallback.
+y pruebas de LED/buzzer/IMU/fallback. El flasheo del binario y el puerto COM
+tampoco pudieron probarse contra una placa física; sí se validó el comando
+`esptool` en modo dry-run.

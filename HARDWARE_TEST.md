@@ -9,7 +9,9 @@ habilita la siguiente.
 
 - [ ] Leíste `docs/wiring.md`.
 - [ ] Fuente externa de 5 V para los servos, GND común y capacitor de 470–1000 µF.
-- [ ] El ESP32 está cargado con `firmware/` y el monitor serie abre a 115200.
+- [ ] Instalaste las dependencias con `INSTALAR.bat` o el procedimiento manual.
+- [ ] Grabaste el firmware con `SUBIR_FIRMWARE.bat` (o PlatformIO) y el monitor
+      serie abre a 115200.
 - [ ] Tenés a mano el comando `ESPACIO` (paro de emergencia) en la GUI.
 - [ ] No hay nada frágil al lado de la placa que pueda caerse.
 - [ ] La pelota se puede sacar y poner sin tocar los cables.
@@ -98,15 +100,17 @@ firmware tienen inversiones distintas a propósito.
 
 1. Montá el celular a unos 40 cm, centrado y fijo. Conectalo como webcam (ver
    README: DroidCam, Iriun o IP Webcam).
-2. Ejecutá `python main.py` desde `pc/`.
-3. Verificá que se vea el video, con fps en pantalla. Si no abre, revisá el índice
-   de cámara en `config.json` o usá `--camera`.
-4. Presioná `R` y hacé clic en las cuatro esquinas de la placa: superior izquierda,
+2. Ejecutá `ELEGIR_DISPOSITIVOS.bat` (o `INICIAR.bat` y después la tecla `D`) y
+   elegí la cámara y el puerto COM. Guardá.
+3. Ejecutá `INICIAR.bat` (o `python main.py` desde `pc/`).
+4. Verificá que se vea el video, con fps en pantalla. Si no abre, probá otro
+   índice de cámara con el selector.
+5. Presioná `R` y hacé clic en las cuatro esquinas de la placa: superior izquierda,
    superior derecha, inferior derecha, inferior izquierda.
-5. Aceptá con Enter. La ROI debe quedar dibujada y guardada en `config.json`.
-6. Si la cámara está inclinada, activá `P` para usar perspectiva. El centro y los
+6. Aceptá con Enter. La ROI debe quedar dibujada y guardada en `config.json`.
+7. Si la cámara está inclinada, activá `P` para usar perspectiva. El centro y los
    bordes deben seguir teniendo sentido al mover la pelota a cada esquina.
-7. Cerrá y abrí la GUI para confirmar que la ROI persiste.
+8. Cerrá y abrí la GUI para confirmar que la ROI persiste.
 
 **Pasa si:** la GUI muestra la placa completa, fps estables (idealmente 30 o más),
 la ROI queda dentro de la placa y la pelota se dibuja con un círculo verde cuando

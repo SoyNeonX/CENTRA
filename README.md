@@ -23,6 +23,10 @@ ESP32: PID 100 Hz ──> 2 servos MG90S
   telemetría a 25 Hz.
 - Si no hay hardware, `python main.py --sim` ejecuta todo el flujo con una cámara
   sintética y un ESP32 falso.
+- La aplicación permite **elegir cámara, URL de stream y puerto COM** desde una
+  ventana propia (primer inicio, tecla `D` o `ELEGIR_DISPOSITIVOS.bat`).
+- Incluye **instalador Windows** (`INSTALAR.bat`), firmware precompilado y una
+  guía para llevarlo todo en un pendrive: `GUIA_PENDRIVE.md`.
 
 > **Importante:** este repositorio se desarrolló sin cámara, ESP32, servos, LED,
 > buzzer ni IMU. Todo lo que necesita hardware está marcado con `TODO-HW:` y se
@@ -35,13 +39,18 @@ ESP32: PID 100 Hz ──> 2 servos MG90S
 
 Verificado en este entorno (Windows 11, Python 3.12, OpenCV 5.0, PlatformIO 6.2):
 
-- `python -m pytest` en `pc/`: **78 pruebas pasan**.
+- `python -m pytest` en `pc/`: **82 pruebas pasan**.
 - `pio run` en `firmware/`: compila para `esp32dev`.
 - `pio run` con `USE_IMU=1`: también compila.
 - `pio test -e native`: **11 pruebas** de PID y protocolo pasan.
 - `python main.py --sim`: abre la ventana y la pelota converge desde 0,5. La
   prueba automática mide **≈1,2 s** para entrar en tolerancia y exige menos de 12 s.
 - Logger CSV y `tools/plot_log.py --save`, probados.
+- Selector visual de cámara/COM abierto e inspeccionado (`--setup-devices`).
+- Instalador probado en modo **offline** con el paquete de `paquete/wheels`;
+  creó el entorno virtual, instaló OpenCV/NumPy/pyserial/esptool y verificó el
+  SHA256 del firmware.
+- Herramienta de flasheo probada con `--dry-run` (sin hardware real).
 
 Falta verificar con hardware (ver `HARDWARE_TEST.md`): sentido real de servos,
 centro mecánico, cámara/luz real, ajuste final de Kp/Ki/Kd, LED, buzzer, IMU y
@@ -64,30 +73,44 @@ fallback de USB.
 
 **Software**
 
-- PlatformIO (extensión de VS Code y/o CLI `pio`).
-- Dependencias de `pc/requirements.txt`.
+- Windows 10/11 con PowerShell (viene incluido).
+- Python 3.10 o superior; para el paquete offline, Python 3.12 x64.
+- PlatformIO **solo si vas a compilar/modificar el firmware**. Para usar el
+  firmware precompilado no hace falta.
+- Dependencias de `pc/requirements.txt` y `pc/tools/requirements-flash.txt`.
 - No se necesita GPU.
 
 ---
 
-## Inicio rápido (5 comandos)
+## Inicio rápido (Windows)
 
-Con Python, el paquete PlatformIO y el celular ya preparados:
+La forma recomendada para el usuario es el instalador:
 
-```powershell
-cd plataforma-pelota\firmware
-pio run -t upload
-cd ..\pc
-python -m venv .venv; .\.venv\Scripts\Activate.ps1; python -m pip install -r requirements.txt
-python main.py
-```
+1. Ejecutá **`INSTALAR.bat`**. Crea `pc\.venv` e instala todo (offline si existe
+   `paquete\wheels`). Si no encuentra Python, ofrece abrir el instalador incluido
+   en `paquete\instaladores` y continúa después de instalarlo.
+2. Conectá el ESP32 y ejecutá **`SUBIR_FIRMWARE.bat`**. Elegí el COM y confirmá.
+3. Ejecutá **`ELEGIR_DISPOSITIVOS.bat`**. Elegí cámara/URL y puerto.
+4. Ejecutá **`INICIAR.bat`** y seguí `HARDWARE_TEST.md`.
+5. Sin hardware, ejecutá **`PROBAR_SIN_HARDWARE.bat`**.
 
-La primera vez conviene leer los pasos completos de abajo y probar antes con
-`python main.py --sim`.
+Los cinco botones son los mismos “cinco comandos” para el usuario final; no hay
+que abrir PowerShell ni escribir rutas. El detalle para llevar todo en un
+pendrive está en **[GUIA_PENDRIVE.md](GUIA_PENDRIVE.md)**.
+
+> Si ya preparaste el paquete offline con `PREPARAR_PENDRIVE.bat`, copiá toda la
+> carpeta del proyecto, incluida `paquete/`. En la escuela, copiá la carpeta a una
+> ubicación escribible (por ejemplo el Escritorio) antes de instalar. Si no
+> preparaste el paquete, `INSTALAR.bat` descarga las dependencias desde internet.
 
 ---
 
-## 1. Instalar Python y el entorno virtual
+## 1. Instalación manual (alternativa para desarrollo)
+
+El instalador `.bat` es la opción recomendada. Esta sección queda para quien
+prefiera una terminal o esté desarrollando.
+
+### 1.1 Python y entorno virtual
 
 1. Descargá Python desde <https://www.python.org/downloads/windows/>. En el
    instalador marcá **Add python.exe to PATH**.
@@ -107,11 +130,12 @@ La primera vez conviene leer los pasos completos de abajo y probar antes con
    python -m venv .venv
    ```
 
-4. Activá el entorno e instalá dependencias:
+4. Activá el entorno e instalá dependencias (incluye `esptool` para grabar el
+   firmware):
 
    ```powershell
    .\.venv\Scripts\Activate.ps1
-   python -m pip install -r requirements.txt
+   python -m pip install -r requirements.txt -r tools\requirements-flash.txt
    ```
 
    Si PowerShell bloquea el script de activación, ejecutá solo para esta sesión:
@@ -130,11 +154,64 @@ La primera vez conviene leer los pasos completos de abajo y probar antes con
 
 ---
 
-## 2. Instalar PlatformIO y cargar el firmware
+## 2. PlatformIO y cómo subir el firmware
 
-PlatformIO compila y sube el programa al ESP32.
+### ¿Qué es PlatformIO y por qué se usa?
 
-### Opción A: VS Code (recomendada para principiantes)
+PlatformIO es la herramienta de compilación. Descarga el core de Arduino para
+ESP32, el compilador, la librería `ESP32Servo` y arma el archivo `.bin`. Después
+lo sube por USB. No es un programa que quede en el ESP32 ni algo que la placa
+ejecute: el ESP32 solo corre el firmware compilado.
+
+Se eligió PlatformIO porque:
+
+- deja las librerías y versiones fijadas en `firmware/platformio.ini`;
+- permite los tests nativos del PID y del protocolo;
+- evita instalar librerías a mano en Arduino IDE;
+- el usuario final **no lo necesita** para usar el firmware ya compilado.
+
+**En la PC de la escuela:** usá `SUBIR_FIRMWARE.bat`. Ese botón graba
+`firmware/prebuilt/plataforma_pelota_esp32.bin` con `esptool` y no depende de
+PlatformIO. Es la opción pensada para el pendrive.
+
+**En la PC de desarrollo (o si cambiás `config.h`):** compilá con PlatformIO.
+El proyecto ya pide automáticamente la única librería externa necesaria
+(`ESP32Servo 3.2.1`); no hay que descargar ZIPs.
+
+### Librerías necesarias
+
+| Parte | Librería | Cómo se obtiene |
+|---|---|---|
+| Firmware | Arduino core ESP32 | PlatformIO automáticamente |
+| Firmware | `ESP32Servo` 3.2.1 | PlatformIO automáticamente, declarada en `platformio.ini` |
+| Firmware | `Wire`, `Preferences` | Incluidas en el core de ESP32 |
+| PC | OpenCV, NumPy, pyserial, pytest, matplotlib | `INSTALAR.bat` o `requirements.txt` |
+| PC / flasheo | `esptool` | `INSTALAR.bat` o `tools/requirements-flash.txt` |
+
+### Subir con el firmware precompilado (recomendado)
+
+**`SUBIR_FIRMWARE.bat`**
+
+El binario ya contiene bootloader, tabla de particiones y aplicación. Se escribe
+en `0x0` con esptool. El script pregunta el puerto COM y verifica el SHA256.
+
+### Subir compilando el código fuente
+
+Desde VS Code: abrí `firmware/`, esperá que PlatformIO descargue la plataforma y
+usá **Upload** en la barra inferior.
+
+Desde PowerShell:
+
+```powershell
+cd plataforma-pelota\firmware
+pio run -t upload
+```
+
+O ejecutá **`COMPILAR_Y_SUBIR_CON_PLATFORMIO.bat`**. Este último es solo para
+desarrollo y requiere PlatformIO instalado; la primera compilación necesita
+internet para descargar el core/compilador.
+
+### Opción A: VS Code (desarrollo)
 
 1. Instalá **Visual Studio Code**.
 2. En Extensiones, buscá **PlatformIO IDE** e instalalo. Esperá a que termine de
@@ -148,7 +225,7 @@ PlatformIO compila y sube el programa al ESP32.
    Project Tasks → esp32dev → Upload.
 7. Abrí el monitor serie a **115200**. Deberías ver `HELLO,1.0.0`.
 
-### Opción B: línea de comandos
+### Opción B: línea de comandos (desarrollo)
 
 Instalá PlatformIO Core con pip (dentro o fuera del venv, pero dejalo disponible):
 
@@ -189,6 +266,23 @@ pio test -e native
 
 No requiere la placa: usa el compilador de la PC y el entorno `native` con Unity.
 Prueban el PID y el parser de protocolo.
+
+### Botones/instalador de Windows
+
+| Archivo | Qué hace |
+|---|---|
+| `INSTALAR.bat` | Crea el entorno virtual, instala las dependencias, verifica el firmware y crea un acceso directo. Usa `paquete\wheels` si existe (sin internet). |
+| `INICIAR.bat` | Abre la aplicación real. |
+| `PROBAR_SIN_HARDWARE.bat` | Abre la simulación (`--sim`). |
+| `ELEGIR_DISPOSITIVOS.bat` | Abre el selector de cámara, URL y COM. |
+| `SUBIR_FIRMWARE.bat` | Graba el firmware precompilado con esptool, sin PlatformIO. |
+| `COMPILAR_Y_SUBIR_CON_PLATFORMIO.bat` | Compila el código actual y lo sube; requiere PlatformIO. |
+| `PREPARAR_PENDRIVE.bat` | Prepara `paquete/` con todas las librerías y el instalador de Python para usar en la escuela sin internet. |
+
+**Para la escuela:** en una PC con internet ejecutá `PREPARAR_PENDRIVE.bat`, copiá
+la carpeta completa al pendrive y seguí **[GUIA_PENDRIVE.md](GUIA_PENDRIVE.md)**.
+En la PC de la escuela no hace falta PlatformIO si solo vas a usar el firmware
+precompilado.
 
 ---
 
@@ -270,7 +364,33 @@ reales.
 
 ---
 
-## 5. Puerto COM del ESP32
+## 5. Seleccionar cámara y puerto COM
+
+### Selector dentro de la aplicación
+
+La app tiene una ventana propia de configuración:
+
+- Se abre **sola en el primer arranque real**.
+- Se puede abrir cuando quieras con la tecla **`D`** o ejecutando
+  **`ELEGIR_DISPOSITIVOS.bat`**.
+- Muestra los índices de cámara (`0`, `1`, `2`, ...), un campo para una **URL**
+  de IP Webcam/RTSP y la lista de puertos COM detectados (más
+  **AUTODETECTAR**).
+
+Cómo usarla:
+
+1. Hacé clic en una cámara o en la fila de URL. Si elegís URL, presioná `U`,
+   escribí la dirección y Enter para terminar de editarla.
+2. Elegí el puerto serial, o dejá **AUTODETECTAR**.
+3. Presioná **ENTER** para guardar. La aplicación se reinicia automáticamente
+   con la cámara y el puerto nuevos.
+4. `R` actualiza la lista de puertos; `ESC` cancela.
+
+El selector **no prueba** las cámaras para no bloquearse ni chocar con la cámara
+en uso. Si un índice no abre, elegí otro. La app muestra `SIN ENLACE` o
+`Esperando imagen` si el dispositivo no está disponible.
+
+### Puerto COM manual
 
 1. Conectá el ESP32 por USB.
 2. Abrí el **Administrador de dispositivos** de Windows → **Puertos (COM y LPT)**.
@@ -285,13 +405,14 @@ reales.
    ```
 
    Si hay un solo ESP32, la autodetección suele ser suficiente. Si no encuentra el
-   puerto, revisá driver/cable o poné el COM manualmente.
+   puerto, revisá driver/cable o elegí el COM con el selector.
 
 ---
 
 ## 6. Primera ejecución de la PC
 
-Desde `pc/` con el venv activado:
+La forma más simple es doble clic en `INICIAR.bat`. Para desarrollo manual, desde
+`pc/` con el venv activado:
 
 ```powershell
 python main.py
@@ -300,15 +421,20 @@ python main.py
 Se abre una ventana de OpenCV. Si no hay cámara o ESP32, la ventana igual abre y
 reintenta; es útil para probar teclas y ver errores.
 
-1. Verificá que aparezca el video.
-2. Presioná `R` y marcá las cuatro esquinas de la placa.
-3. Presioná `C` y calibrá el color naranja.
-4. Opcional: `P` activa/desactiva la perspectiva.
-5. Los trackbars Kp/Ki/Kd están abajo o arriba del video, según la versión de
+1. Si es el primer arranque real, aparece el **selector de cámara y COM**.
+   Elegí los dispositivos y guardá.
+2. Verificá que aparezca el video.
+3. Presioná `R` y marcá las cuatro esquinas de la placa.
+4. Presioná `C` y calibrá el color naranja.
+5. Opcional: `P` activa/desactiva la perspectiva.
+6. Los trackbars Kp/Ki/Kd están abajo o arriba del video, según la versión de
    OpenCV. Empiezan con los valores de `config.json`.
-6. Presioná `1` para manual. Con las flechas incliná la placa y comprobá los
+7. Presioná `1` para manual. Con las flechas incliná la placa y comprobá los
    sentidos.
-7. Recién después de la prueba de ejes, presioná `2` para automático.
+8. Recién después de la prueba de ejes, presioná `2` para automático.
+
+La tecla **`D`** vuelve a abrir el selector en cualquier momento; al guardar, la
+app se reinicia sola con la nueva cámara/puerto.
 
 ### Teclas de la GUI
 
@@ -325,6 +451,7 @@ reintenta; es útil para probar teclas y ver errores.
 | Clic izquierdo | Definir un nuevo setpoint. |
 | `E` | Asistente de ejes (recomienda `SERVO_INVERT_*` para `config.h`). |
 | `K` | Calibrar el centro de los servos con `V` y `C`. |
+| `D` | Elegir cámara/URL y puerto COM; guarda y reinicia. |
 | `P` | Activar/desactivar perspectiva de la ROI. |
 
 La barra superior muestra estado, enlace, posición, error, inclinación, ángulos de
@@ -351,7 +478,30 @@ Las herramientas son de ventana; se controlan con teclado y mouse. La cámara re
 la luz cambian todos los valores, así que hacé estas calibraciones con el montaje
 final.
 
-### 7.1 ROI
+### 7.1 ROI: qué es y cómo se marca
+
+**ROI** significa *Region Of Interest* (región de interés): el rectángulo o
+cuadrilátero que encierra la placa en la imagen. La detección de color solo
+analiza esa zona, así que un objeto naranja fuera de la placa no se confunde con
+la pelota. Además, el centro de la ROI se usa como origen para normalizar la
+posición de la pelota entre -1 y +1:
+
+```
+Imagen de la cámara
+┌──────────────────────────────────────────┐
+│                                          │
+│      4 esquinas de la ROI                │
+│      (amarillo)                          │
+│        ┌──────────────────┐              │
+│        │   ● pelota       │  centro (0,0)
+│        │        +         │              │
+│        └──────────────────┘              │
+│                                          │
+└──────────────────────────────────────────┘
+```
+
+La detección de color queda limitada a la ROI; el centro de la ROI es el
+setpoint por defecto y +Y es hacia arriba de la imagen.
 
 1. Presioná `R`.
 2. Hacé clic en las cuatro esquinas de la **placa**, en orden:
@@ -494,7 +644,15 @@ máquina midió ≈1,2 s.
 
 ```powershell
 cd plataforma-pelota\pc
+.\.venv\Scripts\Activate.ps1
 python -m pytest -q
+```
+
+Si instalaste con `INSTALAR.bat`, desde la raíz del proyecto también podés usar
+el Python del entorno instalado:
+
+```powershell
+pc\.venv\Scripts\python.exe -m pytest -q pc
 ```
 
 Cubre:
@@ -506,6 +664,8 @@ Cubre:
 - Detección con imágenes sintéticas: error < 2 px, sin pelota, ruido, brillo.
 - Integración cerrada en simulación.
 - Seguridad del FakeESP32, lógica del asistente de ejes y logger.
+- Selector de dispositivos: normalización de índices/URL y guardado de
+  cámara/puerto en `config.json`.
 
 ### Firmware nativo
 
@@ -570,6 +730,10 @@ Contiene lo de la PC y lo espeja para la simulación:
 
 - Cámara (índice/URL, resolución, fps, backend, MJPG).
 - Enlace serie y autodetección.
+- `setup_completed`: si es `false`, la app muestra el selector de dispositivos en
+  el primer arranque real. El selector también se abre con `D`.
+- El instalador crea `pc\.venv`, un acceso directo en el escritorio y usa
+  `paquete\wheels` para trabajar sin internet.
 - Rango HSV, área, circularidad, kernels.
 - ROI y perspectiva.
 - Setpoint, paso manual, inversiones de imagen y PID de la GUI/simulación.
@@ -629,15 +793,45 @@ Contiene lo de la PC y lo espeja para la simulación:
 
 ### La cámara no abre
 
-- Probá otro índice: `--camera 0`, `--camera 1`, `--camera 2`.
+- Abrí `ELEGIR_DISPOSITIVOS.bat` o presioná `D` y probá otro índice.
+- También podés usar `--camera 0`, `--camera 1`, `--camera 2`.
 - Verificá que DroidCam/Iriun estén activos y no los esté usando otra app.
 - Si usás una URL, comprobá que se abra en el navegador de la PC y que estén en la
   misma red.
 - Cerrá Zoom, Teams, OBS u otras apps que tomen la webcam.
 
+### No aparece el selector de dispositivos
+
+- Abrí `ELEGIR_DISPOSITIVOS.bat` o presioná `D` dentro de la app.
+- Si ya guardaste antes, `setup_completed` es `true` en `config.json` y no se abre
+  solo; ese comportamiento es intencional.
+
+### El instalador no encuentra Python
+
+- Instalá el Python incluido en `paquete\instaladores\python-3.12.10-amd64.exe`
+  (si preparaste el pendrive) y marcá **Add python.exe to PATH**.
+- O instalá Python 3.12 x64 y volvé a ejecutar `INSTALAR.bat`.
+- Verificá con `python --version` o `py --version`.
+
+### Falla la instalación offline
+
+- Copiá completa la carpeta `paquete\wheels`.
+- El paquete está preparado para Python 3.12 x64. Si esa PC tiene otra versión,
+  usá el instalador de Python incluido o instalá las dependencias con internet.
+- Si hay internet, podés renombrar temporalmente `paquete` y ejecutar
+  `INSTALAR.bat`: instalará desde la red.
+
+### `SUBIR_FIRMWARE.bat` no encuentra el COM
+
+- Instalá el driver CH340 o CP210x.
+- Cerrá Arduino IDE/monitor serie y reconectá la placa.
+- Probá otro cable USB de datos.
+- Mantené BOOT al comenzar si aparece `Connecting...` pero no avanza.
+
 ### Error de ejecución de políticas en PowerShell
 
-Ejecutá una vez en la terminal actual:
+Los `.bat` ya llaman a PowerShell con `-ExecutionPolicy Bypass`, así que
+normalmente no aparece. Para comandos manuales, ejecutá solo en esa terminal:
 
 ```powershell
 Set-ExecutionPolicy -Scope Process Bypass
@@ -647,11 +841,12 @@ o usá `cmd` y `.venv\Scripts\activate.bat`.
 
 ### `pio` no se reconoce
 
-- Instalá PlatformIO Core con `python -m pip install platformio` y abrí una
-  terminal nueva.
+- **Para grabar el firmware no lo necesitás:** usá `SUBIR_FIRMWARE.bat`.
+- Para desarrollo, instalá PlatformIO Core con `python -m pip install platformio`
+  y abrí una terminal nueva.
 - O usá la extensión de VS Code: PlatformIO → Upload.
-- Si PlatformIO no está disponible, el firmware no se puede compilar/subir desde
-  esta máquina; los tests nativos y todo el software de PC se pueden usar igual.
+- Si PlatformIO no está disponible, el firmware precompilado y todo el software
+  de PC se pueden usar igual.
 
 ### La GUI no responde a las teclas
 
@@ -682,13 +877,30 @@ o usá `cmd` y `.venv\Scripts\activate.bat`.
 ```
 plataforma-pelota/
 ├── README.md
+├── LEEME_PRIMERO.txt
+├── GUIA_PENDRIVE.md
 ├── PLAN.md
 ├── HARDWARE_TEST.md
+├── INSTALAR.bat
+├── INICIAR.bat
+├── PROBAR_SIN_HARDWARE.bat
+├── ELEGIR_DISPOSITIVOS.bat
+├── SUBIR_FIRMWARE.bat
+├── COMPILAR_Y_SUBIR_CON_PLATFORMIO.bat
+├── PREPARAR_PENDRIVE.bat
+├── windows/
+│   ├── instalar.ps1
+│   ├── preparar_pendrive.ps1
+│   └── compilar_y_subir.ps1
 ├── docs/
 │   ├── wiring.md
 │   └── protocol.md
 ├── firmware/
 │   ├── platformio.ini
+│   ├── prebuilt/
+│   │   ├── plataforma_pelota_esp32.bin
+│   │   ├── plataforma_pelota_esp32.bin.sha256
+│   │   └── LEEME.txt
 │   ├── include/
 │   │   └── config.h
 │   ├── src/
@@ -699,10 +911,16 @@ plataforma-pelota/
 │   │   └── imu.h / imu.cpp
 │   └── test/
 │       └── test_core/test_core.cpp
+├── paquete/                (se crea con PREPARAR_PENDRIVE.bat; no se versiona)
+│   ├── wheels/
+│   ├── instaladores/
+│   ├── entorno.txt
+│   └── LEEME_PENDRIVE.txt
 └── pc/
     ├── requirements.txt
     ├── config.json
     ├── config.py
+    ├── devices.py
     ├── main.py
     ├── camera.py
     ├── vision.py
@@ -714,9 +932,13 @@ plataforma-pelota/
     ├── sim.py
     ├── logs/               (se crea al ejecutar)
     ├── tools/
-    │   └── plot_log.py
+    │   ├── plot_log.py
+    │   ├── flash_firmware.py
+    │   └── requirements-flash.txt
     └── tests/
         ├── conftest.py
+        ├── test_axis_assistant.py
+        ├── test_devices.py
         ├── test_pid.py
         ├── test_protocol.py
         ├── test_servo_conversion.py

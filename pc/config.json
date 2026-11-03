@@ -14,6 +14,7 @@
     "auto_detect": true,
     "reconnect_delay_s": 1.0
   },
+  "setup_completed": false,
   "vision": {
     "hsv_lower": [
       5,

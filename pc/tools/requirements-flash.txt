@@ -1,0 +1,2 @@
+# Herramienta para grabar el firmware precompilado sin PlatformIO.
+esptool>=5.0,<6

@@ -21,6 +21,7 @@ from calibration import (
     servo_center_calibration,
 )
 from config import save_config
+from devices import setup_devices
 from protocol import (
     format_gains,
     format_mode,
@@ -94,12 +95,15 @@ class BallPlateGUI:
         link,
         config_path: str | Path,
         initial_mode: int = 0,
+        simulation_mode: bool = False,
     ):
         self.config = config
         self.link = link
         self.config_path = Path(config_path)
         self.mode = int(initial_mode) if initial_mode in (0, 1, 2) else 0
+        self.simulation_mode = bool(simulation_mode)
         self.running = True
+        self.restart_requested = False
 
         gui_config = config.get("gui", {})
         self.window = str(gui_config.get("window_name", "Ball and plate"))
@@ -310,6 +314,8 @@ class BallPlateGUI:
                 self._start_axis_assistant()
             elif key == "k":
                 self._calibrate_servo_center()
+            elif key == "d":
+                self._configure_devices()
             elif key in ("left", "right", "up", "down"):
                 self._move_manual(key)
         except (cv2.error, ValueError, OSError) as exc:
@@ -463,6 +469,25 @@ class BallPlateGUI:
         self.assistant.start()
         self.mode = 1
         self._show_message("Asistente de ejes iniciado.")
+
+    def _configure_devices(self) -> None:
+        if self.simulation_mode:
+            self._show_message(
+                "En simulacion no hay camara ni puerto reales. "
+                "Cerra esta ventana y usa ELEGIR_DISPOSITIVOS.bat."
+            )
+            return
+        try:
+            applied = setup_devices(self.config, self.config_path)
+        except (cv2.error, RuntimeError) as exc:
+            self._show_message(f"No se pudo abrir el selector: {exc}", error=True)
+            return
+        if applied:
+            print("[gui] Dispositivos guardados. Reiniciando para aplicarlos...")
+            self.restart_requested = True
+            self.running = False
+        else:
+            self._show_message("Configuracion de dispositivos cancelada.")
 
     def _calibrate_servo_center(self) -> None:
         if not self.link.connected:
@@ -727,8 +752,8 @@ class BallPlateGUI:
         cv2.rectangle(overlay, (0, height - 58), (width, height), (0, 0, 0), -1)
         cv2.addWeighted(overlay, 0.65, image, 0.35, 0, image)
         lines = [
-            "Q salir | ESPACIO paro | 1 manual | 2 automatico | R ROI | C color | P perspectiva",
-            "W guardar ESP32 | E asistente de ejes | K centro servos | flechas manual | clic = setpoint",
+            "Q salir | ESPACIO paro | 1 manual | 2 auto | R ROI | C color | P perspectiva",
+            "D camara/puerto | W guardar ESP32 | E ejes | K centro servos | flechas | clic setpoint",
         ]
         for index, text in enumerate(lines):
             cv2.putText(

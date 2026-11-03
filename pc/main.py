@@ -21,6 +21,7 @@ from pathlib import Path
 import cv2
 from camera import CameraThread
 from config import DEFAULT_CONFIG_PATH, load_config
+from devices import setup_devices
 from gui import BallPlateGUI
 from logger import TelemetryLogger
 from protocol import format_mode
@@ -34,6 +35,8 @@ from vision import (
 )
 
 # TODO-HW: cámara real, ESP32, servos y calibraciones físicas.
+
+RESTART_EXIT_CODE = 100
 
 
 def parse_args(argv=None):
@@ -59,6 +62,11 @@ def parse_args(argv=None):
         "--port",
         default=None,
         help="puerto serie, por ejemplo COM5 (si se omite se autodetecta)",
+    )
+    parser.add_argument(
+        "--setup-devices",
+        action="store_true",
+        help="abrir solo el selector visual de cámara y puerto, y salir",
     )
     return parser.parse_args(argv)
 
@@ -131,6 +139,37 @@ def run(config: dict, config_path: Path, args) -> int:
     if args.sim and bool(config["simulation"].get("auto_start", True)):
         initial_mode = 2
 
+    if args.setup_devices:
+        try:
+            applied = setup_devices(config, config_path)
+        except Exception as exc:
+            print(f"[main] No se pudo abrir el selector de dispositivos: {exc}")
+            return 1
+        if applied:
+            print("[main] Configuración de cámara y puerto guardada.")
+            return 0
+        print("[main] Configuración cancelada; no se modificó config.json.")
+        return 1
+
+    # En el primer arranque real, ofrecer el selector antes de abrir la cámara.
+    if (
+        not args.sim
+        and args.camera is None
+        and args.port is None
+        and not bool(config.get("setup_completed", False))
+    ):
+        print("[main] Primera configuración: elegí cámara y puerto serial.")
+        try:
+            applied = setup_devices(config, config_path)
+        except Exception as exc:
+            print(f"[main] No se pudo abrir el selector: {exc}")
+        else:
+            if applied:
+                print("[main] Dispositivos guardados.")
+            else:
+                print("[main] Selector cancelado; se usarán los valores actuales.")
+                print("[main] Podés abrirlo luego con la tecla D o ELEGIR_DISPOSITIVOS.bat.")
+
     try:
         # La ROI debe ser válida antes de abrir el lazo.
         corners_to_pixels(
@@ -170,6 +209,7 @@ def run(config: dict, config_path: Path, args) -> int:
             link=link,
             config_path=config_path,
             initial_mode=initial_mode,
+            simulation_mode=args.sim,
         )
 
         processor = FrameProcessor(config, link)
@@ -353,18 +393,36 @@ def run(config: dict, config_path: Path, args) -> int:
         except cv2.error:
             pass
 
+    if (
+        gui is not None
+        and getattr(gui, "restart_requested", False)
+        and not args.sim
+        and exit_code == 0
+    ):
+        return RESTART_EXIT_CODE
     return exit_code
 
 
 def main(argv=None) -> int:
     args = parse_args(argv)
     config_path = Path(args.config).expanduser().resolve()
-    try:
-        config = load_config(config_path)
-    except (OSError, ValueError) as exc:
-        print(f"[main] No se pudo leer {config_path}: {exc}")
-        return 2
-    return run(config, config_path, args)
+
+    while True:
+        try:
+            config = load_config(config_path)
+        except (OSError, ValueError) as exc:
+            print(f"[main] No se pudo leer {config_path}: {exc}")
+            return 2
+
+        exit_code = run(config, config_path, args)
+        if exit_code != RESTART_EXIT_CODE:
+            return exit_code
+
+        # El selector de dispositivos guardó config.json. Se reabre la
+        # aplicación con la nueva cámara/puerto, sin exigir reiniciar a mano.
+        print("[main] Reiniciando con la nueva configuración de dispositivos...")
+        args.camera = None
+        args.port = None
 
 
 if __name__ == "__main__":

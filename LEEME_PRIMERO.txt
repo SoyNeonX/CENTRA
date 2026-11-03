@@ -1,0 +1,64 @@
+PLATAFORMA ESTABILIZADORA DE PELOTA - LEEME PRIMERO
+====================================================
+
+APLICACION EN WINDOWS
+---------------------
+1. INSTALAR.bat        Instala las dependencias y crea el entorno.
+                        Si falta Python, ofrece abrir el instalador que
+                        viene en paquete/instaladores (si preparaste el
+                        pendrive) y continua al terminar.
+2. SUBIR_FIRMWARE.bat  Graba el firmware precompilado en el ESP32.
+3. ELEGIR_DISPOSITIVOS.bat  Elige camara/URL y puerto COM.
+4. INICIAR.bat         Abre la aplicacion.
+5. PROBAR_SIN_HARDWARE.bat  Prueba el programa sin camara ni ESP32.
+
+En la primera ejecucion real, la aplicacion tambien abre el selector de
+camara y puerto. Mas adelante podes abrirlo con la tecla D.
+
+ROI
+---
+ROI significa Region Of Interest (region de interes). Es el rectangulo o
+cuadrilatero que encierra la placa en la imagen. La deteccion de color solo
+mira dentro de la ROI, lo que evita falsos positivos fuera de la placa y
+permite normalizar la posicion de la pelota respecto del centro de la placa.
+Se marca con la tecla R en la aplicacion.
+
+PLATFORMIO
+----------
+PlatformIO compila el codigo del firmware ESP32 y lo sube por USB. El archivo
+plataforma_pelota_esp32.bin de firmware/prebuilt ya esta compilado: en la
+escuela NO necesitas PlatformIO para grabar ese binario con SUBIR_FIRMWARE.bat.
+Solo necesitas PlatformIO si vas a modificar el codigo fuente del firmware.
+
+LIBRERIAS
+---------
+Firmware: ESP32Servo 3.2.1 (la instala PlatformIO automaticamente), Wire y
+Preferences (vienen con el core de ESP32).
+
+PC: OpenCV, NumPy, pyserial, pytest y matplotlib, mas esptool para grabar.
+El instalador se encarga de todas. Para uso sin internet, ejecuta antes
+PREPARAR_PENDRIVE.bat en una PC con internet.
+
+PARA LA ESCUELA / PENDRIVE
+--------------------------
+Lee GUIA_PENDRIVE.md. Resumen:
+- En tu PC con internet: PREPARAR_PENDRIVE.bat.
+- Copia toda la carpeta del proyecto (incluida paquete/) a un pendrive.
+- En la escuela: INSTALAR.bat, SUBIR_FIRMWARE.bat, ELEGIR_DISPOSITIVOS.bat,
+  INICIAR.bat.
+- Si la PC no tiene Python, hay un instalador en paquete/instaladores/.
+
+DOCUMENTACION
+-------------
+README.md               Guia completa.
+GUIA_PENDRIVE.md        Transporte, PlatformIO, librerias y escuela.
+HARDWARE_TEST.md        Pruebas fisicas en orden.
+docs/wiring.md          Pines, fuente y capacitor.
+docs/protocol.md        Protocolo serie completo.
+PLAN.md                 Decisiones, supuestos y riesgos.
+
+IMPORTANTE
+----------
+Este proyecto no pudo probarse con hardware fisico en el entorno de
+desarrollo. Antes de usarlo con la pelota, segui HARDWARE_TEST.md.
+No alimentes los servos desde el ESP32.

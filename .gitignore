@@ -4,15 +4,19 @@ __pycache__/
 .venv/
 .pytest_cache/
 .ruff_cache/
+pytest-of-*/
 pc/logs/*.csv
 pc/logs/*.png
 # PlatformIO
 .pio/
 .pioenvs/
 .piolibdeps/
+# Paquete offline generado para pendrive
+paquete/
 # Archivos de prueba locales
 screenshot*.png
 pc/smoke_*.txt
+pc/smoke_selector_*.txt
 # Editores y sistema
 .vscode/
 .idea/
