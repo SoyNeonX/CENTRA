@@ -1,0 +1,111 @@
+{
+  "camera": {
+    "source": 0,
+    "width": 640,
+    "height": 480,
+    "fps": 60,
+    "fourcc": "MJPG",
+    "backend": "dshow",
+    "reconnect_delay_s": 1.0
+  },
+  "serial": {
+    "port": "",
+    "baud": 115200,
+    "auto_detect": true,
+    "reconnect_delay_s": 1.0
+  },
+  "vision": {
+    "hsv_lower": [
+      5,
+      120,
+      120
+    ],
+    "hsv_upper": [
+      20,
+      255,
+      255
+    ],
+    "blur_kernel": 5,
+    "morph_kernel": 5,
+    "min_area": 150,
+    "max_area": 12000,
+    "min_circularity": 0.55
+  },
+  "roi": {
+    "corners_normalized": [
+      [
+        0.05,
+        0.05
+      ],
+      [
+        0.95,
+        0.05
+      ],
+      [
+        0.95,
+        0.95
+      ],
+      [
+        0.05,
+        0.95
+      ]
+    ],
+    "perspective": false
+  },
+  "control": {
+    "start_mode": 0,
+    "setpoint_x": 0.0,
+    "setpoint_y": 0.0,
+    "manual_step_deg": 1.0,
+    "manual_tilt_limit_deg": 8.0,
+    "invert_x": false,
+    "invert_y": false,
+    "pid": {
+      "kp": 6.0,
+      "ki": 0.2,
+      "kd": 4.0,
+      "d_filter": 0.15,
+      "integral_limit_deg": 3.0
+    }
+  },
+  "simulation": {
+    "auto_start": true,
+    "fps": 60,
+    "control_hz": 100,
+    "telemetry_hz": 25,
+    "level_ramp_dps": 30.0,
+    "ball_lost_timeout_ms": 200,
+    "link_timeout_ms": 1000,
+    "ball_radius_px": 18,
+    "ball_start_x": 0.5,
+    "ball_start_y": 0.0,
+    "plate_half_size_cm": 12.0,
+    "gravity_cm_s2": 981.0,
+    "servo": {
+      "center_deg": 90.0,
+      "min_deg": 56.0,
+      "max_deg": 124.0,
+      "invert_x": false,
+      "invert_y": false,
+      "offset_x_deg": 0.0,
+      "offset_y_deg": 0.0,
+      "offset_limit_deg": 20.0,
+      "l_cm": 8.0,
+      "r_cm": 2.0,
+      "tilt_limit_deg": 8.0,
+      "tilt_limit_min_deg": 0.5,
+      "tilt_limit_max_deg": 8.0,
+      "slew_rate_dps": 120.0
+    }
+  },
+  "gui": {
+    "window_name": "Plataforma estabilizadora de pelota",
+    "kp_slider_max": 2000,
+    "ki_slider_max": 1000,
+    "kd_slider_max": 2000
+  },
+  "logging": {
+    "enabled": true,
+    "directory": "logs"
+  }
+}

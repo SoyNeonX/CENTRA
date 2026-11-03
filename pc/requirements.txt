@@ -1,0 +1,10 @@
+# Dependencias de la PC (Windows, Python 3.10 o superior)
+opencv-python>=4.8.0
+numpy>=1.24.0
+pyserial>=3.5
+
+# Necesario solo para ejecutar las pruebas automatizadas
+pytest>=7.4.0
+
+# Opcional: solo para pc/tools/plot_log.py
+matplotlib>=3.7.0
