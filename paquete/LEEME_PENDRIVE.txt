@@ -1,0 +1,30 @@
+CENTRA - PAQUETE PARA PENDRIVE
+===========================================================
+
+Este paquete fue preparado para Windows x64 y Python 3.12.
+Fecha: 2026-11-04 21:49
+
+QUE HACER AHORA
+---------------
+1. Copia TODA la carpeta del proyecto "plataforma-pelota" al pendrive.
+   Incluye esta carpeta "paquete".
+2. En la PC de la escuela, conecta el pendrive y abre la carpeta.
+3. Si la PC no tiene Python, ejecuta primero:
+      paquete\instaladores\python-3.12.10-amd64.exe
+   Marca "Add python.exe to PATH".
+4. Ejecuta INSTALAR.bat.
+5. Ejecuta FIRMWARE.bat, opcion 1, y elegi el COM del ESP32.
+6. Ejecuta CENTRA.bat, opcion 5, para elegir camara y COM.
+7. Ejecuta CENTRA.bat, opcion 1 (OpenCV) u opcion 2 (Tkinter).
+8. Sin hardware: CENTRA.bat, opcion 3 u opcion 4.
+9. Imprimi docs\marcadores_aruco\hoja_marcadores_A4.pdf al 100% (A4)
+
+Si hay internet en la escuela, tambien podes ejecutar INSTALAR.bat sin el
+paquete offline; el instalador descarga las dependencias automaticamente.
+
+NO se necesita PlatformIO en la escuela para grabar el firmware precompilado.
+El firmware se graba con esptool (ya viene en el entorno instalado).
+
+Firmware precompilado: firmware\prebuilt\plataforma_pelota_esp32.bin
+Target Python: 3.12
+Target wheels: 32 archivos en paquete\wheels

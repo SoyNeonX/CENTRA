@@ -11,15 +11,13 @@ pc/logs/*.png
 .pio/
 .pioenvs/
 .piolibdeps/
-# Paquete offline generado para pendrive
-paquete/
+# Paquete offline: se versiona para poder descargarlo en la laptop
 # Ejecutable generado con CREAR_EXE.bat
 build/
 dist/
 PlataformaPelota.spec
 CENTRA.spec
 /PlataformaPelota.exe
-/CENTRA.exe
 /config.json
 /logs/
 # Archivos de prueba locales
