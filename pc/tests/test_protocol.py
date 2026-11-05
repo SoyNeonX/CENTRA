@@ -9,8 +9,7 @@ from protocol import (
 )
 
 VALID_TELEMETRY = (
-    "T,12345,0.500,-0.250,-0.500,0.250,-4.000,2.000,95.20,87.10,"
-    "1.25,-0.50,3"
+    "T,12345,0.500,-0.250,-0.500,0.250,-4.000,2.000,95.20,87.10,3"
 )
 
 
@@ -31,29 +30,31 @@ def test_telemetria_valida():
         "basura",
         "OK,P",
         "T,1,2,3",
-        "T,1,0,0,0,0,0,0,90,90,0,0",  # truncada
-        "T,1,0,0,0,0,0,0,90,90,0,0,9",  # estado inválido
-        "T,-1,0,0,0,0,0,0,90,90,0,0,0",  # tiempo negativo
-        "T,1,0,0,0,0,0,0,90,90,0,0,x",
-        "T,1,nan,0,0,0,0,0,90,90,0,0,0",
+        "T,1,0,0,0,0,0,0,90,90",  # truncada
+        "T,1,0,0,0,0,0,0,90,90,9",  # estado inválido
+        "T,-1,0,0,0,0,0,0,90,90,0",  # tiempo negativo
+        "T,1,0,0,0,0,0,0,90,90,x",
+        "T,1,nan,0,0,0,0,0,90,90,0",
+        "T,1,0,0,0,0,0,0,90,90,0,0",  # formato viejo con roll/pitch
     ],
 )
 def test_telemetria_invalida_no_rompe(line):
     assert parse_telemetry(line) is None
 
 
-def test_format_pose_satura_y_tres_decimales():
-    assert format_pose(2.0, -3.0, True) == "P,1.000,-1.000,1"
-    assert format_pose(0.12345, 0.0, False) == "P,0.123,0.000,0"
+def test_format_pose_cm_dos_decimales():
+    assert format_pose(2.0, -3.0, True) == "P,2.00,-3.00,1"
+    assert format_pose(0.12345, 0.0, False) == "P,0.12,0.00,0"
 
 
-def test_format_telemetry_tiene_13_campos_y_parsea():
-    line = format_telemetry(1, 0.1, 0.2, -0.1, -0.2, 3.0, -4.0, 95, 85, 0, 0, 2)
-    assert len(line.split(",")) == 13
+def test_format_telemetry_tiene_11_campos_y_parsea():
+    line = format_telemetry(1, 0.1, 0.2, -0.1, -0.2, 3.0, -4.0, 95, 85, 2)
+    assert len(line.split(",")) == 11
     parsed = parse_telemetry(line)
     assert parsed is not None
     assert parsed.state == 2
     assert parsed.tilt_y == pytest.approx(-4.0)
+    assert parsed.x == pytest.approx(0.1)
 
 
 @pytest.mark.parametrize(
@@ -113,7 +114,7 @@ def test_comandos_invalidos_no_rompen(line):
 
 
 def test_hello():
-    assert parse_hello("HELLO,1.0.0\r\n") == "1.0.0"
+    assert parse_hello("HELLO,1.1.0\r\n") == "1.1.0"
     assert parse_hello("HELLO,") is None
     assert parse_hello("OK,H") is None
 

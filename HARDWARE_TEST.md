@@ -1,283 +1,195 @@
 # Pruebas de hardware, en orden
 
-Este proyecto se desarrolló sin acceso a cámara, ESP32, servos, LED, buzzer ni IMU.
-Todo lo marcado con `TODO-HW:` en el código y todas las pruebas de este archivo
-tienen que hacerse con el hardware real. **No saltees el orden**: cada prueba
-habilita la siguiente.
+Este proyecto se desarrolló **sin cámara, ESP32, servos, LED ni buzzer físicos**.
+Todo lo marcado `TODO-HW:` en el código y las pruebas de este archivo son
+obligatorias antes de dar el proyecto por terminado.
+
+> No alimentes los servos desde el ESP32. Usá fuente externa de 5 V, GND común y
+> capacitor de 470–1000 µF. Revisá `docs/wiring.md` antes de encender.
 
 ## Antes de empezar
 
-- [ ] Leíste `docs/wiring.md`.
-- [ ] Fuente externa de 5 V para los servos, GND común y capacitor de 470–1000 µF.
-- [ ] Instalaste las dependencias con `INSTALAR.bat` o el procedimiento manual.
-- [ ] Grabaste el firmware con `SUBIR_FIRMWARE.bat` (o PlatformIO) y el monitor
-      serie abre a 115200.
-- [ ] Tenés a mano el comando `ESPACIO` (paro de emergencia) en la GUI.
-- [ ] No hay nada frágil al lado de la placa que pueda caerse.
-- [ ] La pelota se puede sacar y poner sin tocar los cables.
+- [ ] Firmware grabado con `SUBIR_FIRMWARE.bat`.
+- [ ] Driver CH340 o CP210x instalado.
+- [ ] Cuatro marcadores ArUco impresos, recortados con 1 cm de margen y pegados.
+- [ ] Cámara del celular fija, mirando desde arriba, con la placa completa.
+- [ ] `INSTALAR.bat` ejecutado y `ELEGIR_DISPOSITIVOS.bat` configurado.
+- [ ] Fuente de 5 V apagada mientras se hacen las conexiones.
 
-Para las pruebas con comandos manuales se puede usar el monitor serie de
-PlatformIO (`pio device monitor`). Cada línea se termina con Enter.
+La placa debe quedar libre para inclinarse. Empezá sin pelota en las pruebas 1 a 4.
 
 ---
 
-## Prueba 1 — Servos al centro y arranque seguro
+## Prueba 1 — Servos al centro y offsets
 
-**Objetivo:** verificar el centro mecánico y que el firmware arranque apagado.
+Objetivo: que la placa quede nivelada con los servos en 90°.
 
-1. Sin pelota, encendé la fuente de los servos y conectá el ESP32 por USB.
-2. Abrí el monitor serie y verificá que aparezca `HELLO,1.0.0`.
-3. Mandá `H` y comprobá que responda `HELLO,1.0.0` y `OK,H`.
-4. Observá la placa: debe quedar nivelada (servo 90° + offset) y el LED debe quedar
-   apagado.
-5. Esperá 5 segundos sin mandar `M,1` ni `M,2`. La placa no debe inclinarse.
+1. Encendé la fuente y conectá el ESP32. El firmware arranca **apagado** y lleva
+   los servos al centro.
+2. Ejecutá `INICIAR.bat`.
+3. Mirá la placa de frente: debería quedar horizontal.
+4. Si está inclinada, presioná **K** en la GUI. Movés los servos con las trackbars
+   y ves el resultado en la cámara/placa.
+5. Ajustá los dos offsets hasta que los cuatro bordes queden a la misma altura.
+6. Cerrá con **S** (envía `W` y guarda en Preferences). Anotá los valores.
 
-**Pasa si:** los dos servos quedan quietos, la placa está razonablemente nivelada y
-el estado en telemetría es 0 (`... ,0` al final de la línea `T`). Si está inclinada,
-se corrige en la prueba 9 con la calibración de centro.
-
----
-
-## Prueba 2 — Límites de servo (±34°), sin pelota
-
-**Objetivo:** confirmar que los topes lógicos de 56° y 124° no fuerzan la mecánica.
-
-1. Sacá la pelota y sostené la placa para que pueda moverse libremente.
-2. Mandá `M,1` y después `V,56,56`.
-3. Observá que los servos lleguen al tope sin zumbar ni chocar la estructura.
-4. Mandá `V,124,124` y repetí la observación.
-5. Mandá `V,0,0` y `V,300,300`: el firmware debe recortar a 56° y 124°, y no debe
-   mover los servos más allá.
-6. Mandá `M,0` para volver a nivel.
-
-**Pasa si:** en ningún caso el servo supera mecánicamente los topes y no hay
-trabas ni ruido de esfuerzo. Si choca antes de 56°/124°, corregí la mecánica o los
-límites en `config.h`; no fuerces.
+**Pasa si:** la placa queda nivelada y el firmware no se reinicia al mover los
+servos.
 
 ---
 
-## Prueba 3 — Sentido de cada eje
+## Prueba 2 — Límites de servo sin pelota
 
-**Objetivo:** elegir `SERVO_INVERT_X` y `SERVO_INVERT_Y`.
+Objetivo: comprobar que nunca se manda un ángulo fuera de 56°–124°.
 
-La convención del proyecto es que una inclinación positiva debe acelerar la pelota
-hacia +X (derecha de la imagen) y hacia +Y (arriba de la imagen).
+1. Con la placa libre, presioná **1** (manual) y usá las flechas para inclinar
+   +8°, -8° en X y en Y.
+2. Verificá que los servos se muevan suave y que la placa no fuerce topes.
+3. En el monitor serie, los campos `sx` y `sy` de `T` deben quedar siempre entre
+   56 y 124.
+4. Repetí con `V,56,124` y `V,124,56` (por ejemplo desde el calibrador de centro)
+   y comprobá que no se superen los topes.
+5. Cortá la alimentación de los servos: la placa debe quedar en una posición
+   segura, sin golpear.
 
-Opción A, con la GUI:
-
-1. Antes de empezar, asegurate de que `simulation.servo.invert_x/y` en
-   `config.json` coincidan con los `SERVO_INVERT_X/Y` que tiene compilado el
-   firmware. El asistente usa esos valores como punto de partida.
-2. Abrí la GUI.
-3. Presioná `E` y seguí las instrucciones del asistente de ejes.
-4. Anotá la recomendación que aparece en pantalla y en la terminal.
-5. Cambiá `SERVO_INVERT_X` / `SERVO_INVERT_Y` en `firmware/include/config.h` y
-   actualizá también el espejo en `config.json`.
-6. Volvé a compilar/cargar y repetí la prueba hasta que la pelota acelere hacia
-   la derecha/arriba con una inclinación positiva.
-
-Opción B, con el monitor serie:
-
-1. Mandá `M,1` y después `A,2,0`.
-2. Mirá hacia dónde rueda la pelota:
-   - Si rueda a la **derecha**, `SERVO_INVERT_X` debe quedar `false`.
-   - Si rueda a la **izquierda**, `SERVO_INVERT_X` debe quedar `true`.
-3. Mandá `A,0,0` y esperá que se detenga. Después `A,0,2`.
-   - Si sube (hacia el fondo de la imagen), `SERVO_INVERT_Y` queda `false`.
-   - Si baja (hacia el frente), queda `true`.
-4. Mandá `M,0`, cambiá `config.h` si hace falta, recompilá y repetí.
-
-**Pasa si:** la GUI manual y el lazo automático empujan la pelota en el sentido
-correcto. No uses `control.invert_x`/`invert_y` de `config.json` para corregir el
-sentido del servo; esas banderas son para la convención de la imagen. La GUI y el
-firmware tienen inversiones distintas a propósito.
+**Pasa si:** ningún comando, inclinación manual o PID manda un servo fuera de
+[56°, 124°] y no hay zumbido contra el tope.
 
 ---
 
-## Prueba 4 — Cámara real y ROI
+## Prueba 3 — Marcadores con luz real
 
-**Objetivo:** capturar imagen estable y marcar la placa.
+Objetivo: detectar los cuatro ArUco y obtener centímetros estables.
 
-1. Montá el celular a unos 40 cm, centrado y fijo. Conectalo como webcam (ver
-   README: DroidCam, Iriun o IP Webcam).
-2. Ejecutá `ELEGIR_DISPOSITIVOS.bat` (o `INICIAR.bat` y después la tecla `D`) y
-   elegí la cámara y el puerto COM. Guardá.
-3. Ejecutá `INICIAR.bat` (o `python main.py` desde `pc/`).
-4. Verificá que se vea el video, con fps en pantalla. Si no abre, probá otro
-   índice de cámara con el selector.
-5. Presioná `R` y hacé clic en las cuatro esquinas de la placa: superior izquierda,
-   superior derecha, inferior derecha, inferior izquierda.
-6. Aceptá con Enter. La ROI debe quedar dibujada y guardada en `config.json`.
-7. Si la cámara está inclinada, activá `P` para usar perspectiva. El centro y los
-   bordes deben seguir teniendo sentido al mover la pelota a cada esquina.
-8. Cerrá y abrí la GUI para confirmar que la ROI persiste.
+1. Imprimí `docs/marcadores_aruco/hoja_marcadores_A4.pdf` **al 100% en A4**.
+2. Verificá que cada cuadrado negro mida 4,0 × 4,0 cm.
+3. Pegá los marcadores mirando a la cámara:
+   - ID 0 arriba-izquierda
+   - ID 1 arriba-derecha
+   - ID 2 abajo-derecha
+   - ID 3 abajo-izquierda
+4. Los centros deben quedar a **±10 cm** del centro (2 cm del borde). Si los
+   movés, actualizá `pc/config.json` → `plate.marker_centers_cm`.
+5. Abrí la GUI y apuntá la cámara. En el panel debe decir `arUco 4/4`.
+6. Mové la placa ±2 cm y comprobá que el contorno celeste siga los marcadores.
+7. Tapá un marcador: después de **0,5 s** debe aparecer `PLACA NO DETECTADA` y el
+   control debe dejar de recibir una pose nueva.
 
-**Pasa si:** la GUI muestra la placa completa, fps estables (idealmente 30 o más),
-la ROI queda dentro de la placa y la pelota se dibuja con un círculo verde cuando
-se la ve.
-
----
-
-## Prueba 5 — Detección de color con la luz real
-
-**Objetivo:** calibrar HSV y descartar falsos positivos.
-
-1. Poné la pelota naranja en el centro de la placa, con la iluminación habitual.
-2. Presioná `C`.
-3. Mové las trackbars Hmin/Hmax, Smin/Smax, Vmin/Vmax hasta que:
-   - la pelota se vea blanca en la máscara de la derecha;
-   - el fondo oscuro y los objetos del aula no aparezcan;
-   - el círculo verde siga a la pelota.
-4. Pasá la pelota por las cuatro esquinas y por el borde de la ROI.
-5. Probá con la luz del aula encendida y apagada, y con una mano haciendo sombra
-   (sin tapar la pelota).
-6. Aceptá con Enter. El rango se guarda en `config.json`.
-
-**Pasa si:** se detecta la pelota en toda la placa, sin falsos positivos, y el
-centro detectado tiene un error visual menor a unos pocos píxeles. Si el aula tiene
-otra fuente naranja, reducí el área máxima o el rango S/V.
+**Pasa si:** los 4 IDs se detectan con luz normal, el overlay dibuja la placa y
+la posición en cm es estable (sin saltos de varios cm).
 
 ---
 
-## Prueba 6 — Lazo abierto en manual
+## Prueba 4 — Asistente de ejes
 
-**Objetivo:** comprobar movimientos, límites y parada sin PID.
+Objetivo: determinar el sentido físico de X e Y (los flags de `config.h`).
 
-1. Con la pelota quieta o sin ella, presioná `1` (manual).
-2. Movete con las flechas y observá la placa:
-   - flecha derecha debe inclinar para mover la pelota a la derecha;
-   - flecha izquierda, al revés;
-   - flecha arriba debe inclinarla para que la pelota suba en la imagen;
-   - flecha abajo, al revés.
-3. Aumentá la inclinación hasta el límite (8°). La placa no debe pasar de allí.
-4. Presioná `ESPACIO`: debe ir a modo apagado y nivelarse en una rampa corta.
-5. Repetí con una pelota y comprobá que no haya golpes ni rebotes.
+1. Poné la pelota en el centro y esperá a que quede quieta.
+2. Presioná **E**. El asistente inclina +2° en X y te pide observar la pelota.
+3. Si rueda a la **derecha**, presioná **→**. Si rueda a la **izquierda**, **←**.
+4. Aceptá con **ENTER** y repetí para Y: **↑** si rueda hacia arriba, **↓** si no.
+5. Anotá los valores `SERVO_INVERT_X` / `SERVO_INVERT_Y` que imprime la consola.
+6. Si hace falta, editalos en `firmware/include/config.h`, recompilá con
+   `COMPILAR_Y_SUBIR_CON_PLATFORMIO.bat` y actualizá también
+   `simulation.servo.invert_x/y` en `pc/config.json` para que la simulación
+   coincida.
 
-**Pasa si:** los sentidos son correctos, no hay vibración fuerte, los topes se
-respetan y la parada de emergencia nivela la placa.
+> El asistente es **guiado**: no deduce automáticamente el sentido desde la
+> imagen, porque una cámara monocular sin intrínsecos no distingue de forma
+> confiable si una esquina sube o se aleja. Esta decisión está documentada en
+> `PLAN.md`.
 
----
-
-## Prueba 7 — Lazo cerrado con Kp bajo
-
-**Objetivo:** cerrar el lazo sin riesgo de que la pelota salga despedida.
-
-1. Poné la pelota en el centro y el setpoint en el centro (clic en el centro).
-2. En las trackbars, bajá las ganancias a algo conservador:
-   `Kp = 1.5`, `Ki = 0.0`, `Kd = 0.0` (recordá que están multiplicadas por 100).
-3. Presioná `2` (automático). Debe sonar un pitido corto.
-4. Mové suavemente la placa o la pelota y observá si el sistema corrige.
-5. Si la corrección va para el lado contrario, volvé a la prueba 3 y corregí el
-   signo. Si oscila mucho, reducí Kp y presioná `ESPACIO`.
-6. Aumentá Kp de a poco hasta que la pelota empiece a corregir con decisión.
-
-**Pasa si:** la pelota no se cae, el estado pasa a 3 (estabilizando), y el sistema
-empuja hacia el centro. No sigas si el sentido es incorrecto.
+**Pasa si:** al inclinar +X la pelota rueda a la derecha y al inclinar +Y rueda
+hacia arriba, con los flags nuevos.
 
 ---
 
-## Prueba 8 — Ajuste fino del PID
+## Prueba 5 — Pelota y color
 
-**Objetivo:** encontrar ganancias aceptables para el hardware real.
+Objetivo: detectar la pelota dentro de la placa y reportar cm.
 
-Empezá con Kp bajo y seguí este orden:
+1. Poné la pelota en el centro. En la GUI debe aparecer un círculo verde y
+   `PELOTA x≈0.0 y≈0.0 cm`.
+2. Si no aparece, presioná **C** y ajustá H, S y V con la máscara.
+3. Guardá con **S/ENTER** dentro del calibrador.
+4. Mové la pelota a posiciones conocidas: centro, 5 cm a la derecha, 5 cm arriba,
+   5 cm abajo-izquierda. Compará con una regla.
+5. Tapá la pelota: el círculo debe desaparecer y la GUI debe mandar `found=0`.
 
-1. **Kp:** subí hasta que la pelota responda rápido sin oscilar de forma sostenida.
-2. **Kd:** agregá amortiguación hasta que las oscilaciones desaparezcan; si los
-   servos vibran o zumban, bajá Kd o revisá la alimentación.
-3. **Ki:** agregá un valor chico para eliminar el error de posición lento. Si la
-   pelota se vuelve lenta o inestable, bajá Ki.
-4. Probá el setpoint en el centro y en distintos puntos con clics.
-5. Empujá la pelota suavemente y soltala.
-6. Tapá la pelota con la mano: debe pasar a perdida, nivelar la placa y sonar el
-   aviso largo después de 2 s.
-7. Cuando estés conforme, presioná `W`. Se guardan las ganancias y offsets en el
-   ESP32 y se sincronizan las ganancias en `config.json`.
-
-**Pasa si:** la pelota queda dentro de la placa, vuelve al centro después de una
-perturbación razonable y no hay vibración continua. Las ganancias de la simulación
-**no** son las definitivas.
+**Pasa si:** el error de posición es menor a **0,5–1 cm** en el centro de la
+placa y la detección no confunde la pelota con los marcadores.
 
 ---
 
-## Prueba 9 — IMU, LED, buzzer y fallback de enlace
+## Prueba 6 — Control manual en lazo abierto
 
-**Objetivo:** cerrar las pruebas de sensores/periféricos y seguridad.
+Objetivo: validar servos, signos y mecánica sin PID.
 
-### IMU
+1. Presioná **1**. Con las flechas incliná ±2°, ±4° en X e Y.
+2. Verificá que la placa se mueva en la dirección esperada y que la pelota ruede
+   hacia el lado correcto.
+3. Soltá las flechas: la inclinación queda en el último valor manual (no hay
+   retorno automático). Volvé a 0 con las flechas opuestas.
+4. Presioná **ESPACIO**: debe apagar el control y nivelar.
 
-1. Cambiá `USE_IMU` a `1` en `firmware/include/config.h` (si está conectada) y
-   recompilá.
-2. Abrí el monitor serie o la GUI y verificá que `roll` y `pitch` en la telemetría
-   cambien al inclinar la placa. No deben usarse para el control.
-3. Volvé a `USE_IMU=0` si no la vas a dejar conectada.
-
-### LED
-
-Con la placa quieta y el monitor serie abierto:
-
-| Estado | LED esperado |
-|---|---|
-| apagado 0 | apagado |
-| manual 1 | parpadeo lento |
-| buscando 2 | parpadeo rápido |
-| estabilizando 3 | fijo |
-| perdida 4 | doble parpadeo |
-
-### Buzzer
-
-- Al pasar de apagado/manual a automático: pitido corto.
-- Pelota perdida durante más de 2 s: pitido largo.
-
-### Fallback de enlace
-
-**Atención:** si el ESP32 se alimenta solo por USB, desenchufar el USB apaga el
-microcontrolador y la placa **no puede** nivelarse. Para esta prueba hay que cortar
-solo los datos conservando la alimentación del ESP32. Algunas formas:
-
-- Alimentar el ESP32 desde la fuente de 5 V por el pin `5V`/`VIN` de la placa y usar
-  el USB solo para datos. Consultá el pinout de tu DevKit y no conectes 5 V al pin
-  de 3,3 V.
-- Usar un cable USB de solo alimentación para mantener el ESP32 encendido y otro
-  cable/canal de datos que se pueda desconectar (no todos los cables lo permiten).
-- Hacer que la PC deje de mandar comandos (por ejemplo, cerrando la aplicación)
-  mientras el ESP32 sigue alimentado por una fuente externa.
-
-Pasos:
-
-1. En automático con la pelota visible y el ESP32 alimentado aparte, cortá **solo la
-   comunicación serie**.
-2. Cronometrá cuánto tarda la placa en ir a nivel. Debe ser **menos de 1,5 s**.
-3. Restablecé la comunicación. La PC debe reconectar sola, reenviar modo y ganancias,
-   y reanudar la telemetría.
-4. Repetí presionando `ESPACIO` y comprobando que el modo apagado no se abandona
-   solo.
-
-**Pasa si:** todos los patrones coinciden, el fallback nivela a tiempo y el sistema
-no entra en automático sin un `M,2` explícito.
+**Pasa si:** los dos ejes responden, no hay vibración excesiva y la pelota rueda
+en el sentido de la inclinación.
 
 ---
 
-## Registro de resultados
+## Prueba 7 — Automático con Kp bajo
 
-Completá este registro con tus valores reales:
+Objetivo: cerrar el lazo con margen.
+
+1. Poné la pelota cerca del centro, dentro de la placa.
+2. En la GUI bajá **Kp** a aproximadamente 0,20–0,30 (trackbar ×100 = 20–30).
+3. Dejá Ki y Kd bajos: Ki≈0,00–0,02, Kd≈0,10–0,20.
+4. Presioná **2**. El estado debe pasar a `ESTABILIZANDO`.
+5. Soltá la pelota a 2–3 cm del centro. Debe volver sin oscilar demasiado.
+6. Si se va al borde, presioná **ESPACIO** inmediatamente.
+7. Probá el setpoint con un clic dentro de la placa; debe mover la cruz roja y
+   mandar `S` en cm.
+
+**Pasa si:** con Kp bajo la pelota se acerca al setpoint y no se vuelve inestable.
+
+---
+
+## Prueba 8 — Pérdida, enlace y afinación
+
+1. Tapá la pelota más de 200 ms en automático: el estado debe ser
+   `PELOTA PERDIDA`, la placa debe nivelarse y el LED hacer el patrón de pérdida.
+2. Desconectá el USB en automático: después de 1 s la placa debe nivelarse.
+3. Reconectá: la GUI debe reconectar y reenviar modo/ganancias.
+4. Ajustá primero **Kp**, después **Kd**, y por último un **Ki** pequeño.
+5. Guardá con **W**. El firmware guarda ganancias y offsets; el setpoint y el
+   modo no se guardan.
+6. Repetí con la pelota en distintas posiciones y con la luz del aula.
+
+**Pasa si:** no hay carreras, la placa nunca queda inclinada sin control y el
+sistema vuelve al centro de forma repetible.
+
+---
+
+## Tabla de resultados
 
 | Prueba | Fecha | Resultado | Observaciones |
 |---|---|---|---|
-| 1. Centro y arranque | | | |
+| 1. Servos al centro | | | |
 | 2. Límites 56–124° | | | |
-| 3. Sentido de ejes | | | |
-| 4. Cámara y ROI | | | |
-| 5. Color HSV | | | |
+| 3. ArUco con luz real | | | |
+| 4. Asistente de ejes | | | |
+| 5. Pelota/color | | | |
 | 6. Manual | | | |
-| 7. Kp bajo | | | |
-| 8. Afinación | | | |
-| 9. IMU/LED/buzzer/fallback | | | |
+| 7. Automático Kp bajo | | | |
+| 8. Pérdida/afinación | | | |
 
-Ganancias finales de hardware:
+## Pendientes que requieren hardware
 
-```
-Kp = _____    Ki = _____    Kd = _____
-Offsets: X = _____°   Y = _____°
-SERVO_INVERT_X = _____   SERVO_INVERT_Y = _____
-```
+- Sentido real de los servos y flags `SERVO_INVERT_X/Y`.
+- Centro mecánico y offsets reales.
+- Calibración HSV con la cámara y la luz del aula.
+- Error real en cm, repetibilidad y vibración.
+- Detección de ArUco con brillo, reflejos y marcadores parcialmente tapados.
+- Tiempo de recuperación tras pérdida de enlace.
+- Ajuste final de Kp/Ki/Kd y prueba de setpoints en las cuatro esquinas.
+- LED, buzzer y consumo de la fuente de 5 V.

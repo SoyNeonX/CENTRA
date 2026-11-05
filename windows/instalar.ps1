@@ -210,10 +210,11 @@ if ($hasWheels) {
 Write-Ok "OpenCV, NumPy, pyserial y esptool instalados"
 
 Write-Step "Verificando la instalacion"
-$check = "import cv2, numpy, serial, esptool; print('OpenCV', cv2.__version__); print('NumPy', numpy.__version__); print('pyserial', serial.__version__)"
+$check = "import cv2, numpy, serial, esptool; assert hasattr(cv2, 'aruco'), 'OpenCV sin modulo aruco'; print('OpenCV', cv2.__version__); print('ArUco OK'); print('NumPy', numpy.__version__); print('pyserial', serial.__version__)"
 & $venvPython -c $check
 if ($LASTEXITCODE -ne 0) {
-    Write-Host "    ERROR: alguna dependencia no se puede importar." -ForegroundColor Red
+    Write-Host "    ERROR: alguna dependencia no se puede importar o falta ArUco." -ForegroundColor Red
+    Write-Host "    Ejecuta PREPARAR_PENDRIVE.bat de nuevo para regenerar los wheels." -ForegroundColor Yellow
     exit 1
 }
 

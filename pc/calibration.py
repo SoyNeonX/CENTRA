@@ -1,7 +1,6 @@
 """
 Herramientas de calibración asistida:
 
-- Selección de la ROI con 4 clics sobre el video.
 - Calibrador de color HSV con trackbars y vista previa de la máscara.
 - Asistente para decidir el sentido de cada eje.
 - Calibración del centro de los servos con los comandos V y C.
@@ -16,7 +15,6 @@ from __future__ import annotations
 import cv2
 import numpy as np
 from protocol import format_mode, format_offsets, format_raw_servo, format_tilt
-from vision import order_corners
 
 # TODO-HW: ejecutar cada asistente con la cámara y los servos reales.
 
@@ -29,134 +27,7 @@ def _safe_destroy_window(window: str) -> None:
         pass
 
 
-def select_roi(frame, existing_corners=None):
-    """
-    Abre una ventana para marcar 4 esquinas de la placa, en este orden:
-    sup.izq, sup.der, inf.der, inf.izq. Devuelve una lista de 4 puntos [x, y]
-    en píxeles, o None si se cancela.
-    """
-    if frame is None or getattr(frame, "size", 0) == 0:
-        return None
-
-    window = "Calibrar ROI (4 clics)"
-    points: list[tuple[int, int]] = []
-    state = {"accepted": False, "message": "Hace 4 clics, uno por esquina"}
-
-    def on_mouse(event, x, y, flags, param):
-        del flags, param
-        if event != cv2.EVENT_LBUTTONDOWN:
-            return
-        if len(points) >= 4:
-            state["message"] = "Ya hay 4 puntos; Backspace borra el ultimo"
-            return
-        points.append((int(x), int(y)))
-        state["message"] = f"Esquina {len(points)} de 4"
-
-    cv2.namedWindow(window, cv2.WINDOW_AUTOSIZE)
-    cv2.setMouseCallback(window, on_mouse)
-
-    instructions = [
-        "Marca las 4 esquinas de la placa: sup.izq, sup.der, inf.der, inf.izq",
-        "Backspace borra el ultimo punto | ENTER acepta | ESC cancela",
-    ]
-
-    accepted = None
-    try:
-        while True:
-            view = frame.copy()
-            if existing_corners is not None:
-                try:
-                    given = np.asarray(existing_corners, dtype=np.int32)
-                    if given.shape == (4, 2):
-                        cv2.polylines(view, [given.reshape(-1, 1, 2)], True,
-                                      (150, 150, 150), 1, cv2.LINE_AA)
-                except (ValueError, cv2.error):
-                    pass
-
-            if len(points) > 1:
-                cv2.polylines(
-                    view,
-                    [np.asarray(points, dtype=np.int32).reshape(-1, 1, 2)],
-                    len(points) == 4,
-                    (0, 255, 255),
-                    2,
-                    cv2.LINE_AA,
-                )
-            for index, point in enumerate(points):
-                cv2.circle(view, point, 5, (0, 0, 255), -1, cv2.LINE_AA)
-                cv2.putText(
-                    view,
-                    str(index + 1),
-                    (point[0] + 7, point[1] - 7),
-                    cv2.FONT_HERSHEY_SIMPLEX,
-                    0.7,
-                    (0, 0, 255),
-                    2,
-                    cv2.LINE_AA,
-                )
-
-            cv2.rectangle(view, (0, 0), (view.shape[1], 70), (0, 0, 0), -1)
-            for i, text in enumerate(instructions):
-                cv2.putText(
-                    view,
-                    text,
-                    (8, 24 + i * 23),
-                    cv2.FONT_HERSHEY_SIMPLEX,
-                    0.52,
-                    (255, 255, 255),
-                    1,
-                    cv2.LINE_AA,
-                )
-            cv2.putText(
-                view,
-                state["message"],
-                (8, 92),
-                cv2.FONT_HERSHEY_SIMPLEX,
-                0.55,
-                (0, 255, 255),
-                1,
-                cv2.LINE_AA,
-            )
-            cv2.imshow(window, view)
-            key = cv2.waitKey(20) & 0xFF
-
-            if key in (8, 127):
-                if points:
-                    points.pop()
-                state["message"] = "Punto borrado"
-            elif key in (13, 10, 32):
-                if len(points) == 4:
-                    polygon = np.asarray(points, dtype=np.float32)
-                    if cv2.contourArea(polygon) >= 400.0:
-                        try:
-                            accepted = order_corners(polygon)
-                            state["accepted"] = True
-                        except ValueError as exc:
-                            state["message"] = str(exc)
-                    else:
-                        state["message"] = "La ROI es demasiado chica; revisa los clics"
-                else:
-                    state["message"] = "Faltan esquinas"
-            elif key == 27:
-                break
-
-            try:
-                if cv2.getWindowProperty(window, cv2.WND_PROP_VISIBLE) < 1:
-                    break
-            except cv2.error:
-                break
-
-            if state["accepted"]:
-                break
-    finally:
-        _safe_destroy_window(window)
-
-    if accepted is None:
-        return None
-    return [[float(x), float(y)] for x, y in accepted]
-
-
-def calibrate_hsv(frame, vision_config: dict, roi_mask=None):
+def calibrate_hsv(frame, vision_config: dict, plate_mask=None):
     """
     Muestra trackbars HSV y una vista previa de la máscara. Devuelve un nuevo
     diccionario de visión o None si se cancela. El guardado en config.json lo
@@ -214,12 +85,12 @@ def calibrate_hsv(frame, vision_config: dict, roi_mask=None):
                 np.array([hmin, smin, vmin], dtype=np.uint8),
                 np.array([hmax, smax, vmax], dtype=np.uint8),
             )
-            if roi_mask is not None:
-                mask = cv2.bitwise_and(mask, roi_mask)
+            if plate_mask is not None:
+                mask = cv2.bitwise_and(mask, plate_mask)
 
             from vision import detect_ball
 
-            detection = detect_ball(frame, preview_config, roi_mask=roi_mask)
+            detection = detect_ball(frame, preview_config, plate_mask=plate_mask)
             color_view = frame.copy()
             if detection.found:
                 cv2.circle(
@@ -236,7 +107,7 @@ def calibrate_hsv(frame, vision_config: dict, roi_mask=None):
             header = np.zeros((58, preview.shape[1], 3), dtype=np.uint8)
             cv2.putText(
                 header,
-                "Ajusta H, S y V hasta que solo la pelota quede blanca en la mascara",
+                "Ajusta H, S y V hasta que solo la pelota quede blanca en la mascara de la placa",
                 (8, 22),
                 cv2.FONT_HERSHEY_SIMPLEX,
                 0.55,

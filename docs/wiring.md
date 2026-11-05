@@ -8,10 +8,10 @@
 | Señal servo Y (MG90S) | GPIO 19 | PWM de 50 Hz, pulso 500–2400 µs |
 | LED de estado | GPIO 4 | LED + resistencia de 220–330 Ω a GND |
 | Buzzer activo | GPIO 16 | Buzzer activo entre GPIO 16 y GND |
-| IMU MPU6050 SDA | GPIO 21 | Opcional, `USE_IMU=1` |
-| IMU MPU6050 SCL | GPIO 22 | Opcional, `USE_IMU=1` |
-| IMU VCC | 3.3 V | El módulo MPU6050 acepta 3.3 V |
 | GND de referencia | GND | Común con la fuente de los servos |
+
+No se usa IMU en esta versión. Los cuatro marcadores ArUco son la referencia
+visual de la placa.
 
 ## 2. Diagrama simplificado
 
@@ -31,11 +31,19 @@ GPIO 19 ────── señal servo Y (naranja)
 
 GPIO 4  ────── [220–330 Ω] ────── LED ────── GND
 GPIO 16 ────── buzzer activo (+) ────── GND
-
-(Opcional, MPU6050)
-3.3 V ── VCC     GND ── GND
-GPIO 21 ── SDA   GPIO 22 ── SCL
 ```
+
+## 2.1 Marcadores ArUco
+
+- Pegá los marcadores impresos de `docs/marcadores_aruco/hoja_marcadores_A4.pdf`
+  en las cuatro esquinas de la placa, sobre la cara que mira a la cámara.
+- Orden visto desde la cámara: ID 0 arriba-izquierda, ID 1 arriba-derecha,
+  ID 2 abajo-derecha, ID 3 abajo-izquierda.
+- Por defecto cada centro está a **10 cm** del centro de la placa (2 cm del borde
+  para un marcador de 4 cm). Si medís otra posición, cambiala en
+  `pc/config.json` → `plate.marker_centers_cm`.
+- Papel mate y buen contraste. Evitá que el marcador se despegue o se doble.
+- El tamaño impreso tiene que ser 4 × 4 cm. El PDF se imprime al 100%.
 
 ## 3. Advertencia de alimentación
 
@@ -70,9 +78,11 @@ dañar el regulador de la placa.
 ## 5. Mecánica y cámara
 
 - Placa de cartón de 24 × 24 cm, con una superficie oscura mate para que la pelota
-  naranja contraste.
+  naranja contraste y los marcadores se detecten.
 - La pelota es de ping pong de 40 mm. El sistema **no** la hace rebotar: solo
   compensa la inclinación para llevarla al centro.
+- La cámara debe ver los **cuatro marcadores completos**; si falta uno, no hay
+  pose válida después de 0,5 s.
 - La varilla de cada servo se une a 8 cm del centro, sobre el eje de ese servo.
 - El celular se monta fijo a unos **40 cm** sobre la placa, con la cámara mirando
   hacia abajo y la placa completa dentro del cuadro. Evitá que se mueva durante las
@@ -91,5 +101,6 @@ dañar el regulador de la placa.
 - [ ] Buzzer activo en GPIO 16.
 - [ ] Ningún cable toca las partes móviles.
 - [ ] La placa puede inclinarse sin forzar los topes.
+- [ ] Los cuatro marcadores ArUco están pegados con el ID correcto y completos.
 - [ ] La cámara del celular ve toda la placa desde arriba.
 - [ ] Firmware cargado y monitor serie a 115200.

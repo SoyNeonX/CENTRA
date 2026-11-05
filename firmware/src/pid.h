@@ -24,7 +24,7 @@ class PidController {
   void setIntegralLimit(float limit_deg);
   void reset();
 
-  // setpoint y measurement están normalizados en [-1, 1].
+  // setpoint y measurement están en centímetros; las ganancias son grados/cm.
   // dt_s es el tiempo transcurrido desde la llamada anterior, en segundos.
   float update(float setpoint, float measurement, float dt_s);
 

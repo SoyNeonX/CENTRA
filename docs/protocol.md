@@ -1,76 +1,75 @@
 # Protocolo serie PC ↔ ESP32
 
-La comunicación es texto ASCII por USB serie, una línea por mensaje terminada en
-`\n` (el firmware también tolera `\r\n`). El valor por defecto es **115200 baudios**,
-configurable en `firmware/include/config.h` (`SERIAL_BAUD`) y en `pc/config.json`
-(`serial.baud`).
+Comunicación de texto ASCII por USB serie, una línea por mensaje terminada en
+`\n` (el firmware tolera `\r\n`). Valor por defecto: **115200 baudios**.
 
-Los dos lados ignoran líneas truncadas o inválidas sin romperse. El firmware
-responde `ERR,<motivo>` a una línea que parece un comando pero no se puede parsear.
+Los dos lados ignoran líneas truncadas o inválidas. El firmware responde
+`ERR,<motivo>` cuando una línea parece un comando pero no se puede parsear.
+
+> Versión 1.1.0: las posiciones y los setpoints se expresan en **centímetros**
+> sobre la placa. La placa mide 24 × 24 cm; el rango válido es [-12, +12] cm en
+> cada eje. El origen `(0,0)` es el centro.
 
 ## 1. PC → ESP32
 
 | Comando | Formato | Significado |
 |---|---|---|
-| `P` | `P,<x>,<y>,<found>` | Posición normalizada de la pelota, `x` e `y` en [-1, 1] con 3 decimales. `found` = `0` o `1`. |
+| `P` | `P,<x_cm>,<y_cm>,<found>` | Posición de la pelota en cm. `found` = `0` o `1`. |
 | `M` | `M,<modo>` | `0` apagado, `1` manual, `2` automático. |
-| `A` | `A,<tilt_x>,<tilt_y>` | Inclinación deseada en grados, solo válida en modo manual. |
-| `V` | `V,<servo_x>,<servo_y>` | Ángulo crudo de servo para calibrar el centro. Solo en modos 0/1. |
-| `G` | `G,<eje>,<kp>,<ki>,<kd>` | Ganancias. Eje `X`, `Y` o `B` (ambos). |
-| `S` | `S,<sx>,<sy>` | Setpoint normalizado. |
+| `A` | `A,<tilt_x>,<tilt_y>` | Inclinación deseada en grados, solo en modo manual. |
+| `V` | `V,<servo_x>,<servo_y>` | Ángulo crudo de servo para calibrar el centro. |
+| `G` | `G,<eje>,<kp>,<ki>,<kd>` | Ganancias en grados/cm. Eje `X`, `Y` o `B`. |
+| `S` | `S,<sx_cm>,<sy_cm>` | Setpoint en cm. |
 | `C` | `C,<off_x>,<off_y>` | Offset del centro de cada servo, en grados. |
 | `L` | `L,<grados>` | Límite de inclinación en grados. |
-| `W` | `W` | Guarda ganancias y offsets en la NVS (Preferences) del ESP32. |
+| `W` | `W` | Guarda ganancias y offsets en Preferences (NVS). |
 | `H` | `H` | Pide el `HELLO`. |
+
+`C` se conserva como extensión del protocolo: la UI de calibración de centro lo
+necesita y el firmware guarda los offsets con `W`.
 
 ### Rangos y saturación
 
-Los valores continuos que llegan fuera de rango se **saturan**, no se rechazan:
+Los valores continuos fuera de rango se **saturan**, no se rechazan:
 
 | Campo | Rango efectivo |
 |---|---|
-| `P.x`, `P.y` | [-1, 1] |
-| `S.sx`, `S.sy` | [-1, 1] |
-| `A.tilt_x`, `A.tilt_y` | [-límite actual, +límite actual]; el límite de fábrica es ±8° |
+| `P.x`, `P.y` | [-12, 12] cm |
+| `S.sx`, `S.sy` | [-12, 12] cm |
+| `A.tilt_x`, `A.tilt_y` | [-límite actual, +límite actual]; de fábrica ±8° |
 | `V.servo_x`, `V.servo_y` | [56, 124] grados, siempre |
-| `G.kp` | [0, 50] |
-| `G.ki` | [0, 20] |
-| `G.kd` | [0, 50] |
+| `G.kp` | [0, 5] grados/cm |
+| `G.ki` | [0, 1] |
+| `G.kd` | [0, 5] |
 | `C.off_x`, `C.off_y` | [-20, 20] grados |
 | `L` | [0.5, 8] grados |
 
-Los valores discretos inválidos no se saturan para evitar arranques accidentales:
-un `M,3`, un `found=2` o un eje que no sea `X/Y/B` producen `ERR` y no cambian el
-estado. Un modo de operación inválido nunca se interpreta como `M,2`.
+Los valores discretos inválidos no se saturan: `M,3`, `found=2` o un eje distinto
+de `X/Y/B` producen `ERR` y no cambian el estado.
 
-### Detalles por comando
+### Detalles
 
-- **P** se manda por cada cuadro procesado de la cámara (30–60 Hz). Si no se
-  detecta la pelota se manda `P,0.000,0.000,0`. El firmware usa las coordenadas
-  solo cuando `found=1`; el timestamp de recepción se actualiza igual para poder
-  detectar una pérdida.
-- **M,2** es la única forma de entrar en automático. El firmware arranca en 0 y
-  nunca cambia de modo por su cuenta.
-- **A** solo se acepta en modo 1. En 0/2 devuelve `ERR,modo_no_manual`. Al entrar
-  en manual, el firmware conserva la inclinación que tenía y luego acepta `A`.
-- **V** mueve los servos directamente y mantiene el valor hasta recibir `M`, `A` o
-  una nueva orden de control. En modo 2 devuelve `ERR,modo_auto`. Se usa en el
-  calibrador de centro; los ángulos siempre se recortan a [56, 124].
-- **G** se puede mandar por eje. La GUI manda `G,B,...` para que ambos ejes usen
-  los mismos valores. Para cambiar las ganancias de un solo eje desde un script:
-  `G,X,6,0.2,4`.
-- **W** guarda las ganancias de ambos ejes y los offsets. El limitador de
-  inclinación (`L`), el setpoint y el modo no se guardan en NVS.
-- **H** responde `HELLO,<version>`. Es lo que usa la PC para autodetectar el puerto.
+- **P** se manda por cada cuadro procesado (30–60 Hz). Si no se detecta la pelota
+  o la placa, se manda `P,0.00,0.00,0`. El firmware solo usa las coordenadas con
+  `found=1`, pero actualiza el timestamp para detectar la pérdida.
+- **M,2** es la única forma de entrar en automático. El firmware arranca apagado.
+- **A** solo se acepta en manual; en 0/2 devuelve `ERR,modo_no_manual`.
+- **V** mueve los servos directamente y mantiene el valor hasta `M`, `A` o una
+  nueva orden. En automático devuelve `ERR,modo_auto`.
+- **G** se puede mandar por eje o con `B`. Ejemplo: `G,B,0.500,0.020,0.330`.
+- **W** guarda ganancias y offsets. El setpoint, el modo y el límite de inclinación
+  no se guardan en NVS.
+- **H** responde `HELLO,1.1.0`; la PC lo usa para autodetectar el puerto.
 
 ### Ejemplos
 
 ```
-P,0.123,-0.450,1
+P,3.25,-2.10,1
+P,0.00,0.00,0
 M,1
 A,2.0,-1.5
-G,B,6.000,0.200,4.000
-S,0.000,0.000
+G,B,0.500,0.020,0.330
+S,0.00,0.00
 C,0.00,0.00
 L,8.00
 V,90.00,91.50
@@ -83,85 +82,70 @@ H
 ### HELLO
 
 ```
-HELLO,1.0.0
+HELLO,1.1.0
 ```
 
-Se envía una vez al arrancar y cada vez que llega `H`. La versión del firmware está
-en `FW_VERSION` (`config.h`).
+Se envía al arrancar y ante cada `H`. La versión está en `FW_VERSION` de
+`firmware/include/config.h`.
 
-### Respuestas de comandos
+### Respuestas
 
-- `OK,<cmd>`: comando válido aceptado. `<cmd>` es la letra del comando (`P`, `M`, ...).
-  Incluso `P` recibe `OK,P` para cumplir el protocolo de respuesta; la PC ignora esos
-  acuses.
-- `ERR,<motivo>`: comando rechazado o inválido. Motivos posibles:
-  - `comando_desconocido`
-  - `argumentos_invalidos`
-  - `numero_invalido`
-  - `fuera_de_rango`
-  - `linea_vacia`
-  - `linea_larga`
-  - `modo_no_manual`
-  - `modo_auto`
-  - `nvs` (no se pudo escribir la memoria no volátil)
+- `OK,<cmd>`: comando aceptado. Los `P` también reciben `OK,P`; la GUI los ignora.
+- `ERR,<motivo>`: `comando_desconocido`, `argumentos_invalidos`, `numero_invalido`,
+  `fuera_de_rango`, `linea_vacia`, `linea_larga`, `modo_no_manual`, `modo_auto`,
+  `nvs`.
 
 ### Telemetría T (25 Hz por defecto)
 
 ```
-T,<ms>,<x>,<y>,<err_x>,<err_y>,<tilt_x>,<tilt_y>,<sx>,<sy>,<roll>,<pitch>,<estado>
+T,<ms>,<x_cm>,<y_cm>,<err_x_cm>,<err_y_cm>,<tilt_x>,<tilt_y>,<sx>,<sy>,<estado>
 ```
 
 | Campo | Unidad | Significado |
 |---|---|---|
 | `ms` | ms | `millis()` del ESP32 desde el arranque. |
-| `x`, `y` | normalizado | Última posición recibida, en [-1, 1]. |
-| `err_x`, `err_y` | normalizado | `setpoint - posición`; vale 0 si no está estabilizando. |
-| `tilt_x`, `tilt_y` | grados | Inclinación deseada que está aplicando el PID (o manual/apagado). |
+| `x_cm`, `y_cm` | cm | Última posición recibida, en [-12, 12]. |
+| `err_x_cm`, `err_y_cm` | cm | `setpoint - posición`; 0 si no está estabilizando. |
+| `tilt_x`, `tilt_y` | grados | Inclinación comandada por el PID, manual o nivel. |
 | `sx`, `sy` | grados | Ángulo real convertido a los servos, siempre en [56, 124]. |
-| `roll`, `pitch` | grados | Lectura de la IMU. `0.00` si `USE_IMU=0` o no hay lectura. |
 | `estado` | — | 0 apagado, 1 manual, 2 buscando, 3 estabilizando, 4 pelota perdida. |
 
-La telemetría también se sigue mandando en modo apagado/manual; en ese caso los
-errores son 0 y `tilt` es la inclinación manual o de nivel.
+La telemetría se sigue mandando en apagado/manual; en ese caso los errores valen
+0 y la inclinación es la manual o la de nivel.
 
-## 3. Convención de signos
+## 3. Convención de signos y de placa
 
-- `x = +1` está a la **derecha** de la imagen y `x = -1` a la izquierda.
-- `y = +1` está **arriba** en la imagen y `y = -1` abajo (la conversión a píxeles
-  invierte el eje vertical).
-- Un `tilt_x > 0` debe acelerar la pelota hacia +X; un `tilt_y > 0`, hacia +Y.
-  El PID usa ganancias positivas con `error = setpoint - medición`.
-- Si el montaje del servo invierte el sentido físico, se corrige con
+- La cámara ve la placa desde arriba. El marcador **ID 0** está arriba-izquierda,
+  **ID 1** arriba-derecha, **ID 2** abajo-derecha e **ID 3** abajo-izquierda.
+- `x = +12 cm` está a la **derecha** de la imagen; `x = -12 cm` a la izquierda.
+- `y = +12 cm` está **arriba** en la imagen; `y = -12 cm` abajo. La homografía
+  de los ArUco hace la conversión de píxeles a cm.
+- `tilt_x > 0` debe acelerar la pelota hacia +X; `tilt_y > 0`, hacia +Y. El PID
+  usa `error = setpoint - medición` con ganancias positivas.
+- Si el montaje físico del servo invierte el sentido, se corrige con
   `SERVO_INVERT_X` / `SERVO_INVERT_Y` en `firmware/include/config.h`. El asistente
-  de ejes de la GUI indica qué valores poner. No se deben confundir con
-  `control.invert_x` / `control.invert_y` de `config.json`, que corrigen la
-  convención de la imagen (por ejemplo, cámara espejada).
+  de ejes de la GUI recomienda esos valores.
+- `tilt_source` en `config.json` puede ser `"command"` o `"markers"`. En esta
+  entrega se usa `"command"`: la inclinación que se muestra es la comandada. La
+  estimación de inclinación desde ArUco con una cámara monocular sin intrínsecos
+  queda como TODO-HW.
 
 ## 4. Tiempos y seguridad
 
-- El PID corre a **100 Hz** y la telemetría sale a **25 Hz**.
-- Si la pelota no se ve (`found=0`) o pasan **200 ms** sin una P válida, el estado
-  automático pasa a *perdida*, el PID se resetea y la inclinación vuelve a nivel
-  en rampa de 30°/s.
-- Si en modo automático pasan **1 s** sin ningún comando válido, el enlace se
-  considera caído y también se nivela. Desde ±8° esto tarda menos de 1,5 s en
-  total. El LED pasa a doble parpadeo y, a los 2 s de pérdida, suena un pitido
-  largo.
-- Al recuperar el enlace, la PC reenvía `M` y `G` (y `S`/`C` si estaban
-  configurados) y sigue mandando `P`.
+- PID a **100 Hz**, telemetría a **25 Hz**.
+- Sin P válida durante **200 ms**, el automático pasa a *perdida*, resetea el PID
+  y nivela la placa en rampa de 30°/s.
+- Sin ningún comando válido durante **1 s** en automático, el enlace se considera
+  caído y también nivela.
+- Al recuperar el enlace, la PC reenvía `M`, `G`, `S` y `C` (si estaban
+  configurados).
 - Los límites [56°, 124°] se aplican en todos los modos, incluso `V` y `A`.
-- El firmware no usa `delay()` en el lazo.
+- El lazo no usa `delay()`.
 
-## 5. Autodetección y reconexión de la PC
-
-Si `serial.port` está vacío y `serial.auto_detect` es `true`, `serial_link.py`
-prueba los puertos COM disponibles:
+## 5. Autodetección y reconexión
 
 1. Abre el puerto a 115200.
-2. Envía `H\n` y reintenta cada 350 ms durante 1,8 s.
-3. Se queda con el primer puerto que responda `HELLO,<version>`.
-4. Al conectar, reenvía los últimos `M`, `G` y `S`/`C` guardados.
-5. Si el cable se desconecta, cierra el puerto, espera y vuelve a buscar; la GUI
-   nunca se bloquea.
-
-Si se configura un puerto explícito en `config.json`, se prueba solo ese.
+2. Envía `H` y espera `HELLO,<version>` durante 1,8 s.
+3. Se queda con el primer puerto que responda.
+4. Al conectar reenvía los últimos `M`, `G`, `S`/`C`.
+5. Si se desconecta, reintenta sin bloquear la GUI.

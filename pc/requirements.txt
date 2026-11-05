@@ -1,5 +1,6 @@
 # Dependencias de la PC (Windows, Python 3.10 o superior)
-opencv-python>=4.8.0
+# opencv-contrib-python incluye el módulo aruco.
+opencv-contrib-python>=4.8.0
 numpy>=1.24.0
 pyserial>=3.5
 

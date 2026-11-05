@@ -154,9 +154,11 @@ QUE HACER AHORA
       paquete\instaladores\$pythonExeName
    Marca "Add python.exe to PATH".
 4. Ejecuta INSTALAR.bat. Detecta el paquete offline y no necesita internet.
-5. Ejecuta SUBIR_FIRMWARE.bat y elegi el COM del ESP32.
-6. Ejecuta ELEGIR_DISPOSITIVOS.bat si hace falta elegir camara y COM.
-7. Ejecuta INICIAR.bat.
+5. Imprimi docs\marcadores_aruco\hoja_marcadores_A4.pdf al 100% (A4)
+   y pega los 4 ArUco en la placa. El PDF no necesita internet.
+6. Ejecuta SUBIR_FIRMWARE.bat y elegi el COM del ESP32.
+7. Ejecuta ELEGIR_DISPOSITIVOS.bat si hace falta elegir camara y COM.
+8. Ejecuta INICIAR.bat.
 
 Si hay internet en la escuela, tambien podes ejecutar INSTALAR.bat sin el
 paquete offline; el instalador descarga las dependencias automaticamente.

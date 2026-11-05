@@ -1,11 +1,12 @@
 // ============================================================================
 //  Plataforma estabilizadora de pelota - firmware ESP32
 //
-//  La PC manda la posición normalizada de la pelota (P) y este programa corre
-//  el PID a 100 Hz, mueve dos servos y devuelve telemetría a 25 Hz.
+//  La PC detecta los ArUco y manda la posición de la pelota en centímetros
+//  (P). Este programa corre el PID a 100 Hz, mueve dos servos y devuelve
+//  telemetría a 25 Hz.
 //
-//  TODO-HW: todo el comportamiento físico (servos, LED, buzzer, IMU y enlace
-//  USB real) debe verificarse con HARDWARE_TEST.md. En la PC no hay hardware.
+//  TODO-HW: todo el comportamiento físico (servos, LED, buzzer y enlace USB
+//  real) debe verificarse con HARDWARE_TEST.md. En la PC no hay hardware.
 // ============================================================================
 
 #include <Arduino.h>
@@ -17,7 +18,6 @@
 #include <cstring>
 
 #include "config.h"
-#include "imu.h"
 #include "pid.h"
 #include "protocol.h"
 #include "status.h"
@@ -66,10 +66,6 @@ float last_error_y = 0.0f;
 uint32_t last_pose_ms = 0;
 uint32_t last_valid_rx_ms = 0;
 uint32_t auto_entered_ms = 0;
-
-bool imu_ok = false;
-float imu_roll = 0.0f;
-float imu_pitch = 0.0f;
 
 uint32_t last_control_us = 0;
 uint32_t last_telemetry_us = 0;
@@ -278,8 +274,8 @@ void sendError(const char* reason) {
 void handleCommand(const SerialCommand& command, uint32_t now) {
   switch (command.type) {
     case CommandType::POSE: {
-      ball_x = clampf(command.x, -1.0f, 1.0f);
-      ball_y = clampf(command.y, -1.0f, 1.0f);
+      ball_x = clampf(command.x, -POSITION_LIMIT_CM, POSITION_LIMIT_CM);
+      ball_y = clampf(command.y, -POSITION_LIMIT_CM, POSITION_LIMIT_CM);
       last_pose_found = command.found;
       last_pose_ms = now;
       have_pose = true;
@@ -329,8 +325,8 @@ void handleCommand(const SerialCommand& command, uint32_t now) {
     }
 
     case CommandType::SETPOINT: {
-      setpoint_x = clampf(command.x, -1.0f, 1.0f);
-      setpoint_y = clampf(command.y, -1.0f, 1.0f);
+      setpoint_x = clampf(command.x, -POSITION_LIMIT_CM, POSITION_LIMIT_CM);
+      setpoint_y = clampf(command.y, -POSITION_LIMIT_CM, POSITION_LIMIT_CM);
       sendOk(command.type);
       break;
     }
@@ -495,30 +491,21 @@ void updateControl(uint32_t now) {
 
   indicators.setState(telemetryState(mode, auto_phase));
   indicators.update(now);
-
-  if (imu_ok) {
-    float roll = imu_roll;
-    float pitch = imu_pitch;
-    if (imuRead(roll, pitch)) {
-      imu_roll = roll;
-      imu_pitch = pitch;
-    }
-  }
 }
 
 // ---------------------------------------------------------------- telemetría --
 
 void sendTelemetry() {
   const uint8_t state = telemetryState(mode, auto_phase);
-  char buffer[192];
+  char buffer[180];
+  // T,ms,x_cm,y_cm,err_x_cm,err_y_cm,tilt_x,tilt_y,servo_x,servo_y,estado
   snprintf(buffer, sizeof(buffer),
-           "T,%lu,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.2f,%.2f,%.2f,%.2f,%u",
+           "T,%lu,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.2f,%.2f,%u",
            static_cast<unsigned long>(millis()),
            static_cast<double>(ball_x), static_cast<double>(ball_y),
            static_cast<double>(last_error_x), static_cast<double>(last_error_y),
            static_cast<double>(tilt_x), static_cast<double>(tilt_y),
            static_cast<double>(servo_angle_x), static_cast<double>(servo_angle_y),
-           static_cast<double>(imu_roll), static_cast<double>(imu_pitch),
            static_cast<unsigned>(state));
   Serial.println(buffer);
 }
@@ -537,7 +524,6 @@ void setup() {
 
   indicators.begin();
   attachServos();
-  imu_ok = imuBegin();
 
   const uint32_t now_ms = millis();
   last_valid_rx_ms = now_ms;

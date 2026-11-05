@@ -1,0 +1,22 @@
+MARCADORES ARUCO PARA LA PLACA
+================================
+
+Archivo de impresión: hoja_marcadores_A4.pdf
+Imprimí en A4 al 100%, sin "ajustar a la página".
+
+Marcadores: IDs 0, 1, 2 y 3, diccionario DICT_4X4_50.
+Cada cuadrado negro mide 4.0 x 4.0 cm.
+Recortá dejando 1 cm de margen blanco alrededor.
+
+Orden visto desde la cámara:
+  ID 0: arriba-izquierda
+  ID 1: arriba-derecha
+  ID 2: abajo-derecha
+  ID 3: abajo-izquierda
+
+Centros en la placa de 24.0 cm:
+  config.json -> plate.marker_centers_cm
+  Por defecto: (-10, +10), (+10, +10), (+10, -10), (-10, -10) cm.
+
+Los archivos aruco_0.png ... aruco_3.png también están disponibles para
+pegar en una hoja o imprimir por separado.

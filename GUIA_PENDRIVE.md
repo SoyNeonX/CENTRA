@@ -5,6 +5,7 @@ Esta guía responde las dudas típicas de transporte:
 - Qué es PlatformIO y por qué está en el proyecto.
 - Cómo se sube el firmware al ESP32.
 - Qué librerías hacen falta y cuáles se instalan solas.
+- Cómo imprimir y pegar los marcadores ArUco.
 - Cómo preparar un paquete offline para una PC de la escuela sin internet.
 - Qué hacer paso a paso en la PC de la escuela.
 
@@ -25,6 +26,11 @@ plataforma-pelota/
 ├── GUIA_PENDRIVE.md          <- este archivo
 ├── HARDWARE_TEST.md
 ├── docs/
+│   ├── marcadores_aruco/
+│   │   ├── hoja_marcadores_A4.pdf
+│   │   └── aruco_0.png ... aruco_3.png
+│   ├── wiring.md
+│   └── protocol.md
 ├── firmware/
 │   └── prebuilt/
 │       ├── plataforma_pelota_esp32.bin
@@ -77,7 +83,6 @@ probá el firmware en tu casa, y en la escuela usá el binario precompilado.
 |---|---|---|
 | Arduino core ESP32 | PlatformIO, automáticamente | Framework base |
 | `ESP32Servo` 3.2.1 | PlatformIO, automáticamente | Controla los dos MG90S |
-| `Wire` | ya viene en el core | I2C del MPU6050 |
 | `Preferences` | ya viene en el core | Guardar ganancias y offsets |
 | Unity | PlatformIO, solo para tests | No va al ESP32 |
 
@@ -88,7 +93,8 @@ No hay que descargar ZIPs ni copiar carpetas a mano: `platformio.ini` pide
 
 Todo está en:
 
-- `pc/requirements.txt`: OpenCV, NumPy, pyserial, pytest y matplotlib.
+- `pc/requirements.txt`: `opencv-contrib-python` (ArUco), NumPy, pyserial,
+  pytest y matplotlib.
 - `pc/tools/requirements-flash.txt`: `esptool`, necesario para grabar el
   firmware sin PlatformIO.
 
@@ -123,7 +129,7 @@ offline queda pensado para esa misma versión. Si la PC de la escuela tiene otra
 versión de Python, usá el instalador incluido o ejecutá `INSTALAR.bat` con
 internet.
 
-> El paquete puede pesar alrededor de 100 MB, casi todo por OpenCV y el
+> El paquete actual pesa alrededor de 116 MB, casi todo por OpenCV contrib y el
 > instalador de Python.
 
 ## 5. En la PC de la escuela
@@ -144,7 +150,18 @@ El instalador ofrece abrir el Python incluido. Si no lo encontró:
 Si el paquete no tiene el instalador, descargá Python 3.12 x64 desde
 <https://www.python.org/downloads/windows/>.
 
-### Paso 2: instalar la aplicación
+### Paso 2: imprimir y pegar los marcadores
+
+Antes de usar la cámara:
+
+1. Imprimí `docs\marcadores_aruco\hoja_marcadores_A4.pdf` en A4 al **100%**.
+2. Comprobá que cada cuadrado negro mida **4 × 4 cm**.
+3. Recortá dejando 1 cm de blanco alrededor.
+4. Pegalos en la placa: ID 0 arriba-izquierda, 1 arriba-derecha,
+   2 abajo-derecha y 3 abajo-izquierda, vistos desde la cámara.
+5. Los centros deben quedar a **±10 cm** del centro de la placa.
+
+### Paso 3: instalar la aplicación
 
 Doble clic en:
 
@@ -154,14 +171,14 @@ El instalador:
 
 - Crea `pc\.venv` (entorno virtual).
 - Detecta `paquete\wheels` y trabaja sin internet.
-- Instala OpenCV, NumPy, pyserial, pytest, matplotlib y esptool.
+- Instala OpenCV contrib (ArUco), NumPy, pyserial, pytest, matplotlib y esptool.
 - Verifica las importaciones.
 - Comprueba el SHA256 del firmware precompilado.
 - Crea un acceso directo **Plataforma Pelota** en el escritorio.
 
 Si no hay `paquete\wheels`, intenta descargar todo desde internet.
 
-### Paso 3: drivers del USB y conectar el ESP32
+### Paso 4: drivers del USB y conectar el ESP32
 
 Instalá el driver del chip USB de tu DevKit:
 
@@ -172,7 +189,7 @@ Instalá el driver del chip USB de tu DevKit:
 Conectá el ESP32 con un cable USB **de datos**. En el Administrador de
 dispositivos debe aparecer un puerto COM nuevo.
 
-### Paso 4: grabar el firmware
+### Paso 5: grabar el firmware
 
 1. Cerrá Arduino IDE, el monitor serie y cualquier programa que use el COM.
 2. Ejecutá **`SUBIR_FIRMWARE.bat`**.
@@ -184,7 +201,7 @@ dispositivos debe aparecer un puerto COM nuevo.
 El firmware precompilado se graba en `0x0` con esptool y no requiere
 PlatformIO.
 
-### Paso 5: elegir cámara y puerto
+### Paso 6: elegir cámara y puerto
 
 Ejecutá **`ELEGIR_DISPOSITIVOS.bat`**.
 
@@ -198,18 +215,20 @@ La aplicación también abre este selector sola en el primer arranque y se puede
 reabrir desde la ventana principal con la tecla **D**. Al aplicar cambios, la
 aplicación se reinicia sola para abrir la cámara y el puerto nuevos.
 
-### Paso 6: usar y probar
+### Paso 7: usar y probar
 
 - **`INICIAR.bat`**: abre la aplicación con cámara y ESP32 reales.
 - **`PROBAR_SIN_HARDWARE.bat`**: abre la simulación, sin cámara ni ESP32.
 
 La primera vez, dentro de la aplicación:
 
-1. `R` para marcar la ROI de la placa.
-2. `C` para calibrar el color.
-3. `1` para manual y flechas para probar movimientos.
-4. `2` para automático, empezando con Kp bajo.
-5. `ESPACIO` es la parada de emergencia.
+1. Apuntá la cámara y verificá que el panel diga `arUco 4/4`.
+2. `C` para calibrar el color de la pelota.
+3. `K` para ajustar el centro de los servos.
+4. `E` para el asistente de ejes.
+5. `1` manual y flechas para probar movimientos.
+6. `2` automático, empezando con Kp bajo.
+7. `ESPACIO` es la parada de emergencia.
 
 Seguí `HARDWARE_TEST.md` en orden para la puesta en marcha completa.
 
@@ -230,7 +249,7 @@ O ejecutá en Windows:
 **`COMPILAR_Y_SUBIR_CON_PLATFORMIO.bat`**
 
 Ese botón compila el código fuente actual y lo sube. Si cambiás
-`SERVO_INVERT_X/Y`, `USE_IMU`, pines o mecánica en `config.h`:
+`SERVO_INVERT_X/Y`, pines, ganancias o mecánica en `config.h`:
 
 1. Recompilá con PlatformIO.
 2. Probá.
@@ -238,8 +257,8 @@ Ese botón compila el código fuente actual y lo sube. Si cambiás
    volvé a generar el binario fusionado o usá PlatformIO directamente en la
    escuela.
 
-El firmware precompilado se generó con `USE_IMU=0`. Si activás la IMU, hay que
-recompilar.
+El firmware precompilado es la versión 1.1.0, sin IMU. Si cambiás el código o
+`config.h`, hay que recompilar y volver a generar el binario fusionado.
 
 ## 7. Archivos de la aplicación
 

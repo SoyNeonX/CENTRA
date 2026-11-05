@@ -1,9 +1,10 @@
 """
 Interfaz de OpenCV.
 
-Muestra el video, la ROI, la pelota, el setpoint, el estado y los fps. También
-maneja las teclas, el mouse y las trackbars del PID. La comunicación con el
-ESP32 siempre se hace a través del enlace no bloqueante.
+Muestra el video, la placa definida por los ArUco, la pelota en cm, el
+setpoint, el estado y los fps. También maneja las teclas, el mouse y las
+trackbars del PID. La comunicación con el ESP32 siempre se hace a través del
+enlace no bloqueante.
 """
 
 from __future__ import annotations
@@ -17,7 +18,6 @@ import numpy as np
 from calibration import (
     AxisAssistant,
     calibrate_hsv,
-    select_roi,
     servo_center_calibration,
 )
 from config import save_config
@@ -27,13 +27,6 @@ from protocol import (
     format_mode,
     format_setpoint,
     format_tilt,
-)
-from vision import (
-    build_roi_mask,
-    corners_to_pixels,
-    denormalize_point,
-    normalize_point,
-    pixels_to_normalized_corners,
 )
 
 STATE_NAMES = {
@@ -109,8 +102,9 @@ class BallPlateGUI:
         self.window = str(gui_config.get("window_name", "Ball and plate"))
         self._window_created = False
 
-        self.setpoint_x = float(config["control"].get("setpoint_x", 0.0))
-        self.setpoint_y = float(config["control"].get("setpoint_y", 0.0))
+        self.setpoint_x = float(config["control"].get("setpoint_x_cm", 0.0))
+        self.setpoint_y = float(config["control"].get("setpoint_y_cm", 0.0))
+        self.position_limit_cm = float(config["plate"]["size_cm"]) / 2.0
         self.manual_step = float(config["control"].get("manual_step_deg", 1.0))
         self.manual_limit = float(
             config["control"].get("manual_tilt_limit_deg", 8.0)
@@ -126,20 +120,23 @@ class BallPlateGUI:
         }
         self._gains_sent = None
         self._slider_max = {
-            "kp": int(gui_config.get("kp_slider_max", 2000)),
-            "ki": int(gui_config.get("ki_slider_max", 1000)),
-            "kd": int(gui_config.get("kd_slider_max", 2000)),
+            "kp": int(gui_config.get("kp_slider_max", 500)),
+            "ki": int(gui_config.get("ki_slider_max", 100)),
+            "kd": int(gui_config.get("kd_slider_max", 500)),
         }
         self._trackbars_ready = False
 
         self.latest_frame = None
         self.latest_detection = None
-        self.latest_ball_norm = None
+        self.latest_ball_cm = None
+        self.latest_pose = None
         self._image_shape = (
             int(config["camera"].get("height", 480)),
             int(config["camera"].get("width", 640)),
         )
-        self._message = "Listo. Presiona 1 o 2 para habilitar el control."
+        self._message = (
+            "Listo. Apunta los 4 ArUco y presiona 1 o 2 para habilitar el control."
+        )
         self._message_color = (0, 255, 255)
         self._emergency_until = 0.0
         self.assistant: AxisAssistant | None = None
@@ -286,8 +283,6 @@ class BallPlateGUI:
                 self._enter_mode(2)
             elif key == "c":
                 self._calibrate_color()
-            elif key == "r":
-                self._define_roi()
             elif key == "w":
                 if self.link.connected:
                     self.link.send("W")
@@ -302,14 +297,6 @@ class BallPlateGUI:
                     )
                 else:
                     self._show_message("Sin enlace: no se pudo guardar W.", error=True)
-            elif key == "p":
-                roi = self.config["roi"]
-                roi["perspective"] = not bool(roi.get("perspective", False))
-                self._save_config()
-                self._show_message(
-                    "Perspectiva de ROI: "
-                    + ("ACTIVADA" if roi["perspective"] else "DESACTIVADA")
-                )
             elif key == "e":
                 self._start_axis_assistant()
             elif key == "k":
@@ -372,27 +359,20 @@ class BallPlateGUI:
         # Algunos backends también avisan clics sobre la zona de trackbars.
         if not (0 <= x < width and 0 <= y < height):
             return
-        corners = corners_to_pixels(
-            self.config["roi"]["corners_normalized"], width, height
-        )
-        if cv2.pointPolygonTest(corners, (float(x), float(y)), False) < 0:
+        pose = self.latest_pose
+        if pose is None or not pose.valid or not pose.contains_pixel(x, y):
+            self._show_message("El clic debe estar dentro de la placa con ArUco visibles.")
             return
-        try:
-            nx, ny = normalize_point(
-                x,
-                y,
-                corners,
-                perspective=bool(self.config["roi"].get("perspective", False)),
-                invert_x=bool(self.config["control"].get("invert_x", False)),
-                invert_y=bool(self.config["control"].get("invert_y", False)),
-            )
-        except ValueError as exc:
-            self._show_message(f"No se pudo convertir el clic: {exc}", error=True)
+        converted = pose.pixel_to_cm(x, y)
+        if converted is None:
             return
-        self.setpoint_x = nx
-        self.setpoint_y = ny
+        x_cm, y_cm = converted
+        x_cm = max(-self.position_limit_cm, min(self.position_limit_cm, x_cm))
+        y_cm = max(-self.position_limit_cm, min(self.position_limit_cm, y_cm))
+        self.setpoint_x = x_cm
+        self.setpoint_y = y_cm
         self._send_setpoint()
-        self._show_message(f"Setpoint: x={nx:+.2f}  y={ny:+.2f}")
+        self._show_message(f"Setpoint: x={x_cm:+.2f} cm  y={y_cm:+.2f} cm")
 
     # ------------------------------------------------------------ calibración --
     def _save_config(self) -> None:
@@ -401,46 +381,29 @@ class BallPlateGUI:
         except (OSError, ValueError) as exc:
             self._show_message(f"No se pudo guardar config.json: {exc}", error=True)
 
-    def _current_roi_mask(self):
-        if self.latest_frame is None:
+    def _current_plate_mask(self):
+        pose = self.latest_pose
+        if pose is None or not pose.valid or self.latest_frame is None:
             return None
-        height, width = self.latest_frame.shape[:2]
-        corners = corners_to_pixels(
-            self.config["roi"]["corners_normalized"], width, height
-        )
-        return corners, build_roi_mask((height, width, 3), corners)
-
-    def _define_roi(self) -> None:
-        if self.latest_frame is None:
-            self._show_message("Todavía no hay imagen de cámara para marcar la ROI.")
-            return
-        height, width = self.latest_frame.shape[:2]
-        current = corners_to_pixels(
-            self.config["roi"]["corners_normalized"], width, height
-        )
-        selected = select_roi(self.latest_frame, current)
-        if selected is None:
-            self._show_message("Calibración de ROI cancelada.")
-            return
-        corners = pixels_to_normalized_corners(selected, width, height)
-        self.config["roi"]["corners_normalized"] = corners
-        self._save_config()
-        self._show_message("ROI guardada en config.json.")
+        return pose.plate_mask(self.latest_frame.shape)
 
     def _calibrate_color(self) -> None:
         if self.latest_frame is None:
             self._show_message("Todavía no hay imagen de cámara para calibrar color.")
             return
-        result = None
-        roi = self._current_roi_mask()
-        try:
-            result = calibrate_hsv(
-                self.latest_frame,
-                self.config["vision"],
-                roi_mask=roi[1] if roi else None,
+        mask = self._current_plate_mask()
+        if mask is None:
+            self._show_message(
+                "No se detecta la placa: apuntá los 4 ArUco antes de calibrar color.",
+                error=True,
             )
-        finally:
-            pass
+            return
+        result = None
+        result = calibrate_hsv(
+            self.latest_frame,
+            self.config["vision"],
+            plate_mask=mask,
+        )
         if result is None:
             self._show_message("Calibración de color cancelada.")
             return
@@ -513,7 +476,8 @@ class BallPlateGUI:
         self,
         frame,
         detection,
-        ball_norm,
+        ball_cm,
+        pose,
         camera_fps: float,
         vision_fps: float,
         processing_ms: float,
@@ -548,16 +512,18 @@ class BallPlateGUI:
             self._image_shape = image.shape[:2]
 
         self.latest_detection = detection
-        self.latest_ball_norm = ball_norm
+        self.latest_ball_cm = ball_cm
+        self.latest_pose = pose
         height, width = image.shape[:2]
 
-        self._draw_roi(image)
-        self._draw_ball(image, detection)
-        self._draw_setpoint(image)
+        self._draw_plate(image, pose)
+        self._draw_ball(image, detection, ball_cm)
+        self._draw_setpoint(image, pose)
         self._draw_hud(
             image,
             detection,
-            ball_norm,
+            ball_cm,
+            pose,
             camera_fps,
             vision_fps,
             processing_ms,
@@ -586,37 +552,82 @@ class BallPlateGUI:
         except cv2.error:
             self.running = False
 
-    def _draw_roi(self, image) -> None:
-        height, width = image.shape[:2]
-        try:
-            corners = corners_to_pixels(
-                self.config["roi"]["corners_normalized"], width, height
+    def _draw_plate(self, image, pose) -> None:
+        if pose is None or not pose.valid:
+            cv2.putText(
+                image,
+                _ascii("PLACA NO DETECTADA - apunta los 4 marcadores ArUco"),
+                (10, 170),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.5,
+                (0, 165, 255),
+                1,
+                cv2.LINE_AA,
             )
-        except ValueError:
             return
+
+        color = (0, 220, 255) if not pose.stale else (150, 150, 150)
+        corners = np.asarray(pose.plate_corners_px, dtype=np.int32)
         cv2.polylines(
-            image,
-            [corners.astype(np.int32).reshape(-1, 1, 2)],
-            True,
-            (255, 220, 0),
-            1,
-            cv2.LINE_AA,
+            image, [corners.reshape(-1, 1, 2)], True, color, 1, cv2.LINE_AA
         )
-        label = "ROI"
-        if self.config["roi"].get("perspective", False):
-            label += " + perspectiva"
+
+        if pose.marker_centers_px:
+            for marker_id, center in pose.marker_centers_px.items():
+                px, py = int(round(center[0])), int(round(center[1]))
+                cv2.circle(image, (px, py), 4, (255, 255, 0), -1, cv2.LINE_AA)
+                cv2.putText(
+                    image,
+                    f"ID {int(marker_id)}",
+                    (px + 5, py - 5),
+                    cv2.FONT_HERSHEY_SIMPLEX,
+                    0.4,
+                    (255, 255, 0),
+                    1,
+                    cv2.LINE_AA,
+                )
+
+        center = pose.cm_to_pixel(0.0, 0.0)
+        x_end = pose.cm_to_pixel(4.0, 0.0)
+        y_end = pose.cm_to_pixel(0.0, 4.0)
+        if center is not None and x_end is not None:
+            cv2.arrowedLine(
+                image,
+                (int(center[0]), int(center[1])),
+                (int(x_end[0]), int(x_end[1])),
+                (0, 0, 255),
+                2,
+                cv2.LINE_AA,
+                tipLength=0.25,
+            )
+            cv2.putText(image, "+X", (int(x_end[0]) + 4, int(x_end[1])), 
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.45, (0, 0, 255), 1, cv2.LINE_AA)
+        if center is not None and y_end is not None:
+            cv2.arrowedLine(
+                image,
+                (int(center[0]), int(center[1])),
+                (int(y_end[0]), int(y_end[1])),
+                (0, 255, 0),
+                2,
+                cv2.LINE_AA,
+                tipLength=0.25,
+            )
+            cv2.putText(image, "+Y", (int(y_end[0]) + 4, int(y_end[1])), 
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.45, (0, 255, 0), 1, cv2.LINE_AA)
+
+        label = "PLACA ArUco" if not pose.stale else "ULTIMA PLACA (0.5 s)"
         cv2.putText(
             image,
-            label,
+            _ascii(label),
             (int(corners[0][0]) + 4, int(corners[0][1]) - 6),
             cv2.FONT_HERSHEY_SIMPLEX,
             0.42,
-            (255, 220, 0),
+            color,
             1,
             cv2.LINE_AA,
         )
 
-    def _draw_ball(self, image, detection) -> None:
+    def _draw_ball(self, image, detection, ball_cm=None) -> None:
         if detection is None or not detection.found:
             return
         center = (int(round(detection.cx)), int(round(detection.cy)))
@@ -625,32 +636,33 @@ class BallPlateGUI:
         cv2.drawMarker(
             image, center, (0, 255, 0), cv2.MARKER_CROSS, 10, 1, cv2.LINE_AA
         )
+        if ball_cm is not None:
+            cv2.putText(
+                image,
+                _ascii(f"({ball_cm[0]:+.1f}, {ball_cm[1]:+.1f}) cm"),
+                (center[0] + 8, center[1] - 8),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.4,
+                (0, 255, 0),
+                1,
+                cv2.LINE_AA,
+            )
 
-    def _draw_setpoint(self, image) -> None:
-        height, width = image.shape[:2]
-        try:
-            corners = corners_to_pixels(
-                self.config["roi"]["corners_normalized"], width, height
-            )
-            px, py = denormalize_point(
-                self.setpoint_x,
-                self.setpoint_y,
-                corners,
-                perspective=bool(self.config["roi"].get("perspective", False)),
-                invert_x=bool(self.config["control"].get("invert_x", False)),
-                invert_y=bool(self.config["control"].get("invert_y", False)),
-            )
-        except ValueError:
+    def _draw_setpoint(self, image, pose) -> None:
+        if pose is None or not pose.valid:
             return
-        x, y = int(round(px)), int(round(py))
+        point = pose.cm_to_pixel(self.setpoint_x, self.setpoint_y)
+        if point is None:
+            return
+        x, y = int(round(point[0])), int(round(point[1]))
         cv2.drawMarker(image, (x, y), (0, 0, 255), cv2.MARKER_CROSS, 22, 2, cv2.LINE_AA)
         cv2.circle(image, (x, y), 10, (0, 0, 255), 1, cv2.LINE_AA)
         cv2.putText(
             image,
-            "SP",
+            _ascii(f"SP ({self.setpoint_x:+.1f}, {self.setpoint_y:+.1f}) cm"),
             (x + 12, y - 10),
             cv2.FONT_HERSHEY_SIMPLEX,
-            0.45,
+            0.4,
             (0, 0, 255),
             1,
             cv2.LINE_AA,
@@ -660,7 +672,8 @@ class BallPlateGUI:
         self,
         image,
         detection,
-        ball_norm,
+        ball_cm,
+        pose,
         camera_fps,
         vision_fps,
         processing_ms,
@@ -686,30 +699,36 @@ class BallPlateGUI:
         cv2.putText(image, _ascii(line1), (8, 20), cv2.FONT_HERSHEY_SIMPLEX,
                     0.48, (255, 255, 255), 1, cv2.LINE_AA)
 
+        if pose is None or not pose.valid:
+            marker_text = "arUco 0/4"
+        elif pose.stale:
+            marker_text = f"arUco {pose.marker_count()}/4 ultima pose"
+        else:
+            marker_text = f"arUco {pose.marker_count()}/4"
+
         if telemetry is not None:
             line2 = (
-                f"PELOTA x={telemetry.x:+.3f} y={telemetry.y:+.3f}   "
-                f"SP x={self.setpoint_x:+.3f} y={self.setpoint_y:+.3f}"
+                f"PELOTA x={telemetry.x:+.2f} y={telemetry.y:+.2f} cm   "
+                f"SP x={self.setpoint_x:+.2f} y={self.setpoint_y:+.2f} cm"
             )
             line3 = (
-                f"ERR x={telemetry.err_x:+.3f} y={telemetry.err_y:+.3f}   "
+                f"ERR x={telemetry.err_x:+.2f} y={telemetry.err_y:+.2f} cm   "
                 f"TILT x={telemetry.tilt_x:+.2f} y={telemetry.tilt_y:+.2f} deg"
             )
             line4 = (
                 f"SERVO x={telemetry.servo_x:.1f} y={telemetry.servo_y:.1f}   "
-                f"IMU roll={telemetry.roll:+.1f} pitch={telemetry.pitch:+.1f}   "
-                f"ESP {telemetry.ms} ms"
+                f"{marker_text}   ESP {telemetry.ms} ms"
             )
         else:
-            if ball_norm is None:
+            if ball_cm is None:
                 detection_text = "no detectada"
             else:
-                detection_text = f"x={ball_norm[0]:+.3f} y={ball_norm[1]:+.3f}"
+                detection_text = f"x={ball_cm[0]:+.2f} y={ball_cm[1]:+.2f} cm"
             line2 = (
                 f"VISION {detection_text}   "
-                f"SP x={self.setpoint_x:+.3f} y={self.setpoint_y:+.3f}"
+                f"SP x={self.setpoint_x:+.2f} y={self.setpoint_y:+.2f} cm"
             )
-            line3 = "ERR/TILT/SERVO: sin telemetria del ESP32"
+            line3 = f"{marker_text}   ERR/TILT/SERVO: sin telemetria"
             line4 = (
                 f"GANANCIAS Kp={self.gains['kp']:.2f} "
                 f"Ki={self.gains['ki']:.2f} Kd={self.gains['kd']:.2f}"
@@ -722,6 +741,8 @@ class BallPlateGUI:
         for index, text in enumerate((line2, line3, line4, line5), start=1):
             color = (220, 255, 220) if index < 4 else (200, 220, 255)
             if detection is not None and not detection.found and index == 2:
+                color = (0, 165, 255)
+            if (pose is None or not pose.valid) and index == 3:
                 color = (0, 165, 255)
             cv2.putText(
                 image,
@@ -752,8 +773,8 @@ class BallPlateGUI:
         cv2.rectangle(overlay, (0, height - 58), (width, height), (0, 0, 0), -1)
         cv2.addWeighted(overlay, 0.65, image, 0.35, 0, image)
         lines = [
-            "Q salir | ESPACIO paro | 1 manual | 2 auto | R ROI | C color | P perspectiva",
-            "D camara/puerto | W guardar ESP32 | E ejes | K centro servos | flechas | clic setpoint",
+            "Q salir | ESPACIO paro | 1 manual | 2 auto | C color HSV | W guardar ESP32",
+            "D camara/puerto | E ejes | K centro servos | flechas | clic setpoint en cm",
         ]
         for index, text in enumerate(lines):
             cv2.putText(

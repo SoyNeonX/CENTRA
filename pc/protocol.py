@@ -25,17 +25,11 @@ class Telemetry:
     tilt_y: float
     servo_x: float
     servo_y: float
-    roll: float
-    pitch: float
     state: int
 
     @property
     def error_magnitude(self) -> float:
         return math.hypot(self.err_x, self.err_y)
-
-
-def _clamp(value: float, low: float, high: float) -> float:
-    return max(low, min(high, value))
 
 
 def parse_telemetry(line: str) -> Telemetry | None:
@@ -44,12 +38,12 @@ def parse_telemetry(line: str) -> Telemetry | None:
         return None
     try:
         parts = line.strip().split(",")
-        if len(parts) != 13 or parts[0] != "T":
+        if len(parts) != 11 or parts[0] != "T":
             return None
 
         ms = int(parts[1])
-        values = [float(part) for part in parts[2:12]]
-        state = int(parts[12])
+        values = [float(part) for part in parts[2:10]]
+        state = int(parts[10])
         if ms < 0 or state not in (0, 1, 2, 3, 4):
             return None
         if any(not math.isfinite(value) for value in values):
@@ -141,11 +135,9 @@ def parse_host_command(line: str):
     return None
 
 
-def format_pose(x: float, y: float, found: bool) -> str:
-    """Arma P con 3 decimales y satura la posición a [-1, 1]."""
-    x = _clamp(float(x), -1.0, 1.0)
-    y = _clamp(float(y), -1.0, 1.0)
-    return f"P,{x:.3f},{y:.3f},{1 if found else 0}"
+def format_pose(x_cm: float, y_cm: float, found: bool) -> str:
+    """Arma P con posición en cm y 2 decimales. El firmware limita el rango."""
+    return f"P,{float(x_cm):.2f},{float(y_cm):.2f},{1 if found else 0}"
 
 
 def format_mode(mode: int) -> str:
@@ -169,10 +161,9 @@ def format_gains(axis: str, kp: float, ki: float, kd: float) -> str:
     return f"G,{axis},{float(kp):.3f},{float(ki):.3f},{float(kd):.3f}"
 
 
-def format_setpoint(x: float, y: float) -> str:
-    x = _clamp(float(x), -1.0, 1.0)
-    y = _clamp(float(y), -1.0, 1.0)
-    return f"S,{x:.3f},{y:.3f}"
+def format_setpoint(x_cm: float, y_cm: float) -> str:
+    """Setpoint en cm. El firmware lo limita al tamaño de la placa."""
+    return f"S,{float(x_cm):.2f},{float(y_cm):.2f}"
 
 
 def format_offsets(offset_x: float, offset_y: float) -> str:
@@ -193,13 +184,11 @@ def format_telemetry(
     tilt_y: float,
     servo_x: float,
     servo_y: float,
-    roll: float,
-    pitch: float,
     state: int,
 ) -> str:
     """Formato de telemetría compartido por el firmware (mismo orden de campos)."""
     return (
         f"T,{int(ms)},{x:.3f},{y:.3f},{err_x:.3f},{err_y:.3f},"
         f"{tilt_x:.3f},{tilt_y:.3f},{servo_x:.2f},{servo_y:.2f},"
-        f"{roll:.2f},{pitch:.2f},{int(state)}"
+        f"{int(state)}"
     )

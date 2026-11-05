@@ -23,8 +23,6 @@ class TelemetryLogger:
         "tilt_y",
         "servo_x",
         "servo_y",
-        "roll",
-        "pitch",
         "estado",
     )
 
@@ -65,8 +63,6 @@ class TelemetryLogger:
                 f"{telemetry.tilt_y:.3f}",
                 f"{telemetry.servo_x:.2f}",
                 f"{telemetry.servo_y:.2f}",
-                f"{telemetry.roll:.2f}",
-                f"{telemetry.pitch:.2f}",
                 telemetry.state,
             ]
         )

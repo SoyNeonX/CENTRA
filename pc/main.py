@@ -5,8 +5,8 @@ Uso típico:
     python main.py            # cámara real + ESP32
     python main.py --sim      # simulación completa, sin hardware
 
-La PC detecta la pelota y envía su posición normalizada. El PID vive en el
-ESP32 (o en el FakeESP32 cuando se usa --sim).
+La PC detecta los ArUco de la placa, convierte la pelota a centímetros y envía
+la posición. El PID vive en el ESP32 (o en el FakeESP32 cuando se usa --sim).
 """
 
 from __future__ import annotations
@@ -24,15 +24,11 @@ from config import DEFAULT_CONFIG_PATH, load_config
 from devices import setup_devices
 from gui import BallPlateGUI
 from logger import TelemetryLogger
+from markers import MarkerTracker
 from protocol import format_mode
 from serial_link import SerialLink
 from sim import Simulation
-from vision import (
-    build_roi_mask,
-    corners_to_pixels,
-    detect_ball,
-    normalize_point,
-)
+from vision import BallDetection, detect_ball
 
 # TODO-HW: cámara real, ESP32, servos y calibraciones físicas.
 
@@ -86,43 +82,39 @@ def _resolve_log_directory(config: dict, config_path: Path) -> Path:
 
 
 class FrameProcessor:
-    """Detección + normalización + envío de P, compartido por ambos modos."""
+    """Detección ArUco + pelota en cm + envío de P."""
 
     def __init__(self, config: dict, link):
         self.config = config
         self.link = link
-        self.roi_config = config["roi"]
-        self.control_config = config["control"]
-        self.last_error = ""
+        self.tracker = MarkerTracker(config)
+        self.position_limit_cm = float(config["plate"]["size_cm"]) / 2.0
 
     def process(self, frame):
-        height, width = frame.shape[:2]
-        corners = corners_to_pixels(
-            self.roi_config["corners_normalized"], width, height
-        )
-        mask = build_roi_mask((height, width, 3), corners)
-        detection = detect_ball(frame, self.config["vision"], roi_mask=mask)
+        pose = self.tracker.detect(frame)
+        detection = BallDetection(0.0, 0.0, 0.0, False)
+        ball_cm = None
 
-        ball_norm = None
-        if detection.found:
-            try:
-                ball_norm = normalize_point(
-                    detection.cx,
-                    detection.cy,
-                    corners,
-                    perspective=bool(self.roi_config.get("perspective", False)),
-                    invert_x=bool(self.control_config.get("invert_x", False)),
-                    invert_y=bool(self.control_config.get("invert_y", False)),
-                )
-            except ValueError as exc:
-                self.last_error = str(exc)
-                ball_norm = None
+        if pose.valid:
+            mask = pose.plate_mask(frame.shape)
+            detection = detect_ball(
+                frame, self.config["vision"], plate_mask=mask
+            )
+            if detection.found:
+                converted = pose.pixel_to_cm(detection.cx, detection.cy)
+                if converted is not None:
+                    x_cm, y_cm = converted
+                    if (
+                        abs(x_cm) <= self.position_limit_cm
+                        and abs(y_cm) <= self.position_limit_cm
+                    ):
+                        ball_cm = (x_cm, y_cm)
 
-        if ball_norm is None:
+        if ball_cm is None:
             self.link.send_pose(0.0, 0.0, False)
         else:
-            self.link.send_pose(ball_norm[0], ball_norm[1], True)
-        return detection, ball_norm
+            self.link.send_pose(ball_cm[0], ball_cm[1], True)
+        return detection, ball_cm, pose
 
 
 def run(config: dict, config_path: Path, args) -> int:
@@ -171,12 +163,14 @@ def run(config: dict, config_path: Path, args) -> int:
                 print("[main] Podés abrirlo luego con la tecla D o ELEGIR_DISPOSITIVOS.bat.")
 
     try:
-        # La ROI debe ser válida antes de abrir el lazo.
-        corners_to_pixels(
-            config["roi"]["corners_normalized"],
-            int(config["camera"]["width"]),
-            int(config["camera"]["height"]),
-        )
+        # La configuración de la placa debe ser válida antes de abrir el lazo.
+        tracker_check = MarkerTracker(config)
+        del tracker_check
+        if str(config.get("tilt_source", "command")) != "command":
+            print(
+                "[main] tilt_source=markers no está implementado sin calibración "
+                "de cámara; se usará la inclinación comandada."
+            )
 
         if args.sim:
             sim = Simulation(config)
@@ -218,13 +212,15 @@ def run(config: dict, config_path: Path, args) -> int:
         last_telemetry_count = -1
         last_frame_index = -1
         last_detection = None
-        last_norm = None
+        last_ball_cm = None
+        last_pose = None
         last_frame = None
         last_render = 0.0
 
         if logger is not None and logger.path:
             print(f"[log] CSV: {logger.path}")
         print("[main] Ventana abierta. Q para salir, ESPACIO para paro de emergencia.")
+        print("[main] La placa se detecta con los ArUco IDs 0, 1, 2 y 3.")
         if not args.sim:
             if initial_mode == 0:
                 print("[main] El firmware arranca apagado; presiona 2 para automático.")
@@ -245,12 +241,15 @@ def run(config: dict, config_path: Path, args) -> int:
             if telemetry is not None:
                 logger.log(telemetry)
 
-        def draw_current(frame, detection, ball_norm, camera_fps, process_ms, latency_ms):
+        def draw_current(
+            frame, detection, ball_cm, pose, camera_fps, process_ms, latency_ms
+        ):
             nonlocal last_render
             gui.render(
                 frame,
                 detection,
-                ball_norm,
+                ball_cm,
+                pose,
                 camera_fps=camera_fps,
                 vision_fps=_measured_fps(frame_times),
                 processing_ms=process_ms,
@@ -259,9 +258,9 @@ def run(config: dict, config_path: Path, args) -> int:
             last_render = time.perf_counter()
 
         def process_frame(frame, packet_timestamp=None):
-            nonlocal last_detection, last_norm, last_frame
+            nonlocal last_detection, last_ball_cm, last_pose, last_frame
             started = time.perf_counter()
-            detection, ball_norm = processor.process(frame)
+            detection, ball_cm, pose = processor.process(frame)
             finished = time.perf_counter()
             process_ms = (finished - started) * 1000.0
             process_times.append(process_ms)
@@ -272,7 +271,8 @@ def run(config: dict, config_path: Path, args) -> int:
                 else process_ms
             )
             last_detection = detection
-            last_norm = ball_norm
+            last_ball_cm = ball_cm
+            last_pose = pose
             last_frame = frame
             return process_ms, latency_ms
 
@@ -280,7 +280,7 @@ def run(config: dict, config_path: Path, args) -> int:
             target_period = 1.0 / max(1.0, float(config["simulation"].get("fps", 60.0)))
             last_time = time.perf_counter()
             # Mostrar ya la ventana, incluso antes del primer cuadro.
-            gui.render(None, None, None, 0.0, 0.0, 0.0, 0.0)
+            gui.render(None, None, None, None, 0.0, 0.0, 0.0, 0.0)
             while gui.running:
                 loop_started = time.perf_counter()
                 gui.process_events()
@@ -301,7 +301,8 @@ def run(config: dict, config_path: Path, args) -> int:
                 draw_current(
                     frame,
                     last_detection,
-                    last_norm,
+                    last_ball_cm,
+                    last_pose,
                     camera_fps=sim_fps,
                     process_ms=process_ms,
                     latency_ms=latency_ms,
@@ -312,7 +313,7 @@ def run(config: dict, config_path: Path, args) -> int:
                     time.sleep(target_period - elapsed)
         else:
             # Mostrar la ventana en blanco hasta que llegue el primer cuadro.
-            gui.render(None, None, None, 0.0, 0.0, 0.0, 0.0)
+            gui.render(None, None, None, None, 0.0, 0.0, 0.0, 0.0)
             while gui.running:
                 gui.process_events()
                 if not gui.running:
@@ -327,7 +328,8 @@ def run(config: dict, config_path: Path, args) -> int:
                     draw_current(
                         packet.frame,
                         last_detection,
-                        last_norm,
+                        last_ball_cm,
+                        last_pose,
                         camera_fps=camera.fps,
                         process_ms=process_ms,
                         latency_ms=latency_ms,
@@ -340,13 +342,15 @@ def run(config: dict, config_path: Path, args) -> int:
                             draw_current(
                                 last_frame,
                                 last_detection,
-                                last_norm,
+                                last_ball_cm,
+                                last_pose,
                                 camera_fps=camera.fps,
                                 process_ms=process_times[-1] if process_times else 0.0,
                                 latency_ms=0.0,
                             )
                         else:
                             draw_current(
+                                None,
                                 None,
                                 None,
                                 None,

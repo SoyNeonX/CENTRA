@@ -20,16 +20,16 @@ from collections import deque
 
 import cv2
 import numpy as np
+from markers import draw_markers
 from protocol import format_telemetry, parse_host_command, parse_telemetry
-from vision import corners_to_pixels, denormalize_point
 
-FW_VERSION_SIM = "1.0.0-sim"
+FW_VERSION_SIM = "1.1.0-sim"
 
-# Límites de ganancias equivalentes a config.h. No son valores físicos.
+# Límites de ganancias equivalentes a config.h (grados por cm).
 GAIN_LIMITS = {
-    "kp": (0.0, 50.0),
-    "ki": (0.0, 20.0),
-    "kd": (0.0, 50.0),
+    "kp": (0.0, 5.0),
+    "ki": (0.0, 1.0),
+    "kd": (0.0, 5.0),
 }
 
 
@@ -263,8 +263,9 @@ class FakeESP32:
         self.mode = 0
         self.auto_phase = 2  # 2=buscando, 3=estabilizando, 4=perdida
         self.raw_servo_hold = False
-        self.setpoint_x = float(config["control"].get("setpoint_x", 0.0))
-        self.setpoint_y = float(config["control"].get("setpoint_y", 0.0))
+        self.setpoint_x = float(config["control"].get("setpoint_x_cm", 0.0))
+        self.setpoint_y = float(config["control"].get("setpoint_y_cm", 0.0))
+        self.position_limit_cm = float(config["plate"]["size_cm"]) / 2.0
         self.offset_x = float(self.servo_config["offset_x_deg"])
         self.offset_y = float(self.servo_config["offset_y_deg"])
 
@@ -405,8 +406,12 @@ class FakeESP32:
 
         if command == "P":
             x, y, found = args
-            self.ball_x = clamp(x, -1.0, 1.0)
-            self.ball_y = clamp(y, -1.0, 1.0)
+            self.ball_x = clamp(
+                x, -self.position_limit_cm, self.position_limit_cm
+            )
+            self.ball_y = clamp(
+                y, -self.position_limit_cm, self.position_limit_cm
+            )
             self.last_pose_found = bool(found)
             self.have_pose = True
             self.last_pose_ms = self.clock_ms
@@ -452,8 +457,12 @@ class FakeESP32:
                 self.pid[selected_axis].set_gains(**values)
             replies.append("OK,G")
         elif command == "S":
-            self.setpoint_x = clamp(args[0], -1.0, 1.0)
-            self.setpoint_y = clamp(args[1], -1.0, 1.0)
+            self.setpoint_x = clamp(
+                args[0], -self.position_limit_cm, self.position_limit_cm
+            )
+            self.setpoint_y = clamp(
+                args[1], -self.position_limit_cm, self.position_limit_cm
+            )
             replies.append("OK,S")
         elif command == "C":
             self.offset_x = clamp(
@@ -537,8 +546,6 @@ class FakeESP32:
                 tilt_y=self.tilt_y,
                 servo_x=self.servo_x,
                 servo_y=self.servo_y,
-                roll=0.0,
-                pitch=0.0,
                 state=self._state_code(),
             )
             return [line]
@@ -606,40 +613,50 @@ class FakeSerialLink:
 
 
 class SyntheticCamera:
-    """Genera los cuadros de la cámara ficticia."""
+    """Genera los cuadros de la cámara ficticia con placa y ArUco."""
 
     def __init__(self, config: dict):
         self.config = config
         self.width = int(config["camera"]["width"])
         self.height = int(config["camera"]["height"])
         self.radius = int(config["simulation"]["ball_radius_px"])
-        self.roi = config["roi"]
-        self.corners = corners_to_pixels(
-            self.roi["corners_normalized"], self.width, self.height
+        self.half_size_cm = float(config["plate"]["size_cm"]) / 2.0
+
+        normalized = np.asarray(
+            config["simulation"]["view_corners_normalized"], dtype=np.float32
         )
-        self.perspective = bool(self.roi.get("perspective", False))
-        self.invert_x = bool(config["control"].get("invert_x", False))
-        self.invert_y = bool(config["control"].get("invert_y", False))
+        self.corners = np.column_stack(
+            (normalized[:, 0] * self.width, normalized[:, 1] * self.height)
+        ).astype(np.float32)
+        plate_cm = np.array(
+            [
+                [-self.half_size_cm, self.half_size_cm],
+                [self.half_size_cm, self.half_size_cm],
+                [self.half_size_cm, -self.half_size_cm],
+                [-self.half_size_cm, -self.half_size_cm],
+            ],
+            dtype=np.float32,
+        )
+        self.plate_to_image = cv2.getPerspectiveTransform(plate_cm, self.corners)
         self.background = (180, 80, 0)  # BGR azul
         self.plate_color = (38, 38, 38)  # placa oscura mate
         self.ball_color = (0, 140, 255)  # naranja
 
-    def render(self, x_norm: float, y_norm: float) -> np.ndarray:
+    def plate_to_pixel(self, x_cm: float, y_cm: float) -> tuple[float, float]:
+        point = np.array([[[float(x_cm), float(y_cm)]]], dtype=np.float32)
+        result = cv2.perspectiveTransform(point, self.plate_to_image)[0, 0]
+        return float(result[0]), float(result[1])
+
+    def render(self, x_cm: float, y_cm: float) -> np.ndarray:
         frame = np.empty((self.height, self.width, 3), dtype=np.uint8)
         frame[:] = self.background
 
         plate = self.corners.astype(np.int32).reshape((-1, 1, 2))
         cv2.fillPoly(frame, [plate], self.plate_color)
         cv2.polylines(frame, [plate], True, (210, 210, 210), 1, cv2.LINE_AA)
+        draw_markers(frame, self.plate_to_image, self.config)
 
-        px, py = denormalize_point(
-            x_norm,
-            y_norm,
-            self.corners,
-            perspective=self.perspective,
-            invert_x=self.invert_x,
-            invert_y=self.invert_y,
-        )
+        px, py = self.plate_to_pixel(x_cm, y_cm)
         cv2.circle(
             frame,
             (int(round(px)), int(round(py))),
@@ -660,8 +677,8 @@ class Simulation:
         self.link = FakeSerialLink(self.fake)
         self.camera = SyntheticCamera(config)
         sim_config = config["simulation"]
-        self.ball_x = float(sim_config.get("ball_start_x", 0.5))
-        self.ball_y = float(sim_config.get("ball_start_y", 0.0))
+        self.ball_x = float(sim_config.get("ball_start_x_cm", 6.0))
+        self.ball_y = float(sim_config.get("ball_start_y_cm", 0.0))
         self.velocity_x = 0.0
         self.velocity_y = 0.0
         self.gravity = float(sim_config.get("gravity_cm_s2", 981.0))
@@ -693,18 +710,16 @@ class Simulation:
             self._accumulator -= self.control_dt
 
     def _integrate_ball(self, dt: float) -> None:
-        # a_norm = (5/7) * g * sin(tilt) / semiancho_de_la_placa
+        # a_cm = (5/7) * g * sin(tilt), con g en cm/s².
         accel_x = (
             (5.0 / 7.0)
             * self.gravity
             * math.sin(math.radians(self.fake.plate_tilt_x))
-            / self.half_size_cm
         )
         accel_y = (
             (5.0 / 7.0)
             * self.gravity
             * math.sin(math.radians(self.fake.plate_tilt_y))
-            / self.half_size_cm
         )
 
         self.velocity_x += accel_x * dt
@@ -713,11 +728,15 @@ class Simulation:
         self.ball_y += self.velocity_y * dt
 
         # La pelota no rebota: al llegar al borde se limita y se detiene.
-        if self.ball_x < -1.0 or self.ball_x > 1.0:
-            self.ball_x = clamp(self.ball_x, -1.0, 1.0)
+        if self.ball_x < -self.half_size_cm or self.ball_x > self.half_size_cm:
+            self.ball_x = clamp(
+                self.ball_x, -self.half_size_cm, self.half_size_cm
+            )
             self.velocity_x = 0.0
-        if self.ball_y < -1.0 or self.ball_y > 1.0:
-            self.ball_y = clamp(self.ball_y, -1.0, 1.0)
+        if self.ball_y < -self.half_size_cm or self.ball_y > self.half_size_cm:
+            self.ball_y = clamp(
+                self.ball_y, -self.half_size_cm, self.half_size_cm
+            )
             self.velocity_y = 0.0
 
     def render_frame(self) -> np.ndarray:

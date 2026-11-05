@@ -54,7 +54,7 @@ def main(argv=None) -> int:
     axes[0].plot(time_values, data["x"], label="x")
     axes[0].plot(time_values, data["y"], label="y")
     axes[0].axhline(0, color="gray", linewidth=0.8)
-    axes[0].set_ylabel("posicion normalizada")
+    axes[0].set_ylabel("posicion (cm)")
     axes[0].legend()
     axes[0].grid(True, alpha=0.3)
     axes[0].set_title("Plataforma estabilizadora de pelota")
