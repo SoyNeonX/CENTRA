@@ -12,7 +12,7 @@ Tamano: 413152 bytes
 SHA256: 460983894b8d440d4abfa981a00e0cf84f04678527ef55fe683557eaa2274e44
 
 NO hace falta PlatformIO en la PC de la escuela para usar este archivo.
-Se graba con SUBIR_FIRMWARE.bat, que usa esptool y pregunta el puerto COM.
+Se graba con FIRMWARE.bat, que usa esptool y pregunta el puerto COM.
 
 La posicion y el setpoint se manejan en centimetros. El PID tiene ganancias
 iniciales Kp=0.50, Ki=0.02 y Kd=0.33 (grados por cm), ajustables desde la PC.
@@ -25,4 +25,4 @@ iniciales, etc.), tenes que recompilar con PlatformIO:
     pio run -t upload
 
 En la PC de desarrollo tambien podes usar
-COMPILAR_Y_SUBIR_CON_PLATFORMIO.bat.
+FIRMWARE.bat.

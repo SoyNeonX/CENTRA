@@ -131,3 +131,20 @@ def test_configuracion_de_marcadores_invalida():
     config["plate"]["marker_dictionary"] = "NO_EXISTE"
     with pytest.raises(ValueError):
         MarkerTracker(config)
+
+
+def test_acepta_cuatro_ids_distintos_por_posicion():
+    """Si el usuario ya imprimio IDs 1-4, se asignan por ubicacion."""
+    base = load_config()
+    scene_config = load_config()
+    scene_config["plate"]["marker_ids"] = [1, 2, 3, 4]
+    frame, plate_to_image = make_plate_scene(scene_config)
+    tracker = MarkerTracker(base)
+    pose = tracker.detect(frame, now_s=20.0)
+
+    assert pose.valid
+    assert set(pose.detected_ids) == {1, 2, 3, 4}
+    px, py = project_plate_to_image(plate_to_image, 4.0, -3.0)
+    x_cm, y_cm = pose.pixel_to_cm(px, py)
+    assert abs(x_cm - 4.0) < 0.2
+    assert abs(y_cm + 3.0) < 0.2

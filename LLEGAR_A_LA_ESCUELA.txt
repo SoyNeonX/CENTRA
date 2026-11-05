@@ -1,0 +1,55 @@
+CENTRA - LLEGAR A LA ESCUELA
+============================
+AGUILAS IMPERIALES - CHECKLIST RAPIDA - (C) 2026
+
+1. COPIAR
+   Copia toda la carpeta "plataforma-pelota" del pendrive al Escritorio de la
+   laptop. No la ejecutes desde un pendrive de solo lectura.
+   Incluye "paquete/" (115 MB) y docs/marcadores_aruco/.
+   NO copies pc\.venv, firmware\.pio ni .git.
+
+2. INSTALAR
+   Doble clic en INSTALAR.bat.
+   - Crea pc\.venv y valida las dependencias.
+   - Si falta Python, ofrece abrir el instalador de paquete/instaladores.
+   - Instala offline desde paquete/wheels.
+
+3. CONECTAR EL ESP32-WROOM
+   - Cable USB de datos.
+   - Driver CH340 o CP210x si no aparece el COM.
+   - Abri FIRMWARE.bat, opcion 1, y elegi el COM.
+   - Si no entra, mantene BOOT al empezar y soltalo en "Connecting...".
+   - Opcion 3 de FIRMWARE.bat abre el monitor serie.
+
+4. CAMARA
+   - Abri CENTRA.bat, opcion 5, y elegi camara y puerto.
+   - DroidCam/Iriun: instala el cliente en la laptop y elegi la camara virtual.
+   - IP Webcam: elegi URL y escribi http://IP:8080/video.
+   - Dentro de la app tambien podes usar D.
+
+5. MARCADORES
+   - Verifica que el diccionario sea DICT_4X4_50.
+   - Si son IDs 1-4, el software los acepta por posicion.
+   - Los centros deben estar a 10 cm del centro de la placa.
+
+6. PROBAR
+   - Sin hardware: CENTRA.bat, opcion 3 (OpenCV) u opcion 4 (Tkinter).
+   - Con hardware: CENTRA.bat, opcion 1 (OpenCV) u opcion 2 (Tkinter).
+   - En OpenCV: C color, K centro de servos, E asistente de ejes,
+     1 manual, 2 automatico, ESPACIO paro.
+
+7. SI UN SERVO GIRA AL REVES
+   No recompiles. En la app:
+   - OpenCV: tecla X o Y.
+   - Tkinter: casillas "Invertir X" / "Invertir Y".
+   - Asistente E de OpenCV: aplica la inversion al cerrar.
+   Deja SERVO_INVERT_X/Y de firmware/config.h en false.
+
+8. DIAGNOSTICO
+   CENTRA.bat, opcion 6. Revisa OpenCV/ArUco, config, firmware, COM y Tkinter.
+
+9. SI ALGO FALLA
+   - La app no abre: revisa que INSTALAR.bat haya terminado sin errores.
+   - No hay camara: usa la simulacion (opcion 3 o 4) y revisa el driver.
+   - No hay COM: driver USB y cable de datos.
+   - La pelota no se detecta: calibra color con C y revisa la luz.

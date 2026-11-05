@@ -139,8 +139,8 @@ if (Test-Path $firmware) {
 }
 
 $readme = @"
-PLATAFORMA ESTABILIZADORA DE PELOTA - PAQUETE PARA PENDRIVE
-===========================================================
+CENTRA - PAQUETE PARA PENDRIVE
+==============================
 
 Este paquete fue preparado para Windows x64 y Python $targetMajorMinor.
 Fecha: $created
@@ -153,12 +153,12 @@ QUE HACER AHORA
 3. Si la PC no tiene Python, ejecuta primero:
       paquete\instaladores\$pythonExeName
    Marca "Add python.exe to PATH".
-4. Ejecuta INSTALAR.bat. Detecta el paquete offline y no necesita internet.
-5. Imprimi docs\marcadores_aruco\hoja_marcadores_A4.pdf al 100% (A4)
-   y pega los 4 ArUco en la placa. El PDF no necesita internet.
-6. Ejecuta SUBIR_FIRMWARE.bat y elegi el COM del ESP32.
-7. Ejecuta ELEGIR_DISPOSITIVOS.bat si hace falta elegir camara y COM.
-8. Ejecuta INICIAR.bat.
+4. Ejecuta INSTALAR.bat.
+5. Ejecuta FIRMWARE.bat, opcion 1, y elegi el COM del ESP32.
+6. Ejecuta CENTRA.bat, opcion 5, para elegir camara y COM.
+7. Ejecuta CENTRA.bat, opcion 1 (OpenCV) u opcion 2 (Tkinter).
+   Sin hardware: opcion 3 u opcion 4.
+8. Imprimi docs\marcadores_aruco\hoja_marcadores_A4.pdf al 100% (A4).
 
 Si hay internet en la escuela, tambien podes ejecutar INSTALAR.bat sin el
 paquete offline; el instalador descarga las dependencias automaticamente.
@@ -186,7 +186,7 @@ Write-Host "  Ruedas: $wheelCount"
 Write-Host "  Instalador Python incluido: $(Test-Path $pythonInstaller)"
 Write-Host ""
 Write-Host "  Copia toda la carpeta del proyecto al pendrive, no solo 'paquete'."
-Write-Host "  En la escuela: INSTALAR.bat -> SUBIR_FIRMWARE.bat -> ELEGIR_DISPOSITIVOS.bat -> INICIAR.bat"
+Write-Host "  En la escuela: INSTALAR.bat -> FIRMWARE.bat -> CENTRA.bat (opcion 1/2)"
 Write-Host "  Lee paquete\LEEME_PENDRIVE.txt para el paso a paso." -ForegroundColor Cyan
 Write-Host ""
 exit 0

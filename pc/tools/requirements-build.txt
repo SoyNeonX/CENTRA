@@ -1,0 +1,2 @@
+# Solo para construir CENTRA.exe en la PC de desarrollo
+pyinstaller>=6.10,<7

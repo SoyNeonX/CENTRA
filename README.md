@@ -1,4 +1,6 @@
-# Plataforma estabilizadora de pelota
+# CENTRA — Plataforma estabilizadora de pelota
+
+**ÁGUILAS IMPERIALES** · control de bola y placa
 
 Proyecto escolar de **ball and plate**: una placa de cartón de 24 × 24 cm se
 inclina con dos servos MG90S para llevar una pelota de ping pong naranja al
@@ -18,7 +20,7 @@ PC (Python + OpenCV)
 ESP32: PID 100 Hz → 2 servos MG90S + LED + buzzer
         │  T,<...> telemetría 25 Hz
         ▼
-PC: interfaz OpenCV + CSV
+PC: interfaz OpenCV o Tkinter + CSV
 ```
 
 - El lazo de control vive en el **ESP32**, no en la PC.
@@ -39,14 +41,16 @@ PC: interfaz OpenCV + CSV
 ## Decisión de alcance de esta versión
 
 El documento de Claude pedía tkinter + matplotlib, modo de 4 pestañas y
-estimación de inclinación desde los marcadores. Para esta entrega se eligió una
-versión **híbrida** más segura:
+estimación de inclinación desde los marcadores. La versión quedó **híbrida**:
 
-- Se conserva la interfaz **OpenCV** ya probada (video, overlay, teclas,
-  trackbars y panel). No se usa tkinter.
+- La interfaz **OpenCV** sigue siendo la principal y la que ya estaba probada.
+- Se agregó una interfaz **Tkinter opcional** con cámara, simulación 2D,
+  gráficas y panel de control. No reemplaza a la anterior. **No pude ejecutarla
+  en esta sesión por el bloqueo de procesos del entorno**; probala con
+  `CENTRA.bat`.
 - Se migró la visión a **ArUco + cm**.
-- Se mantiene la calibración de color, centro de servos y asistente de ejes
-  dentro de la misma ventana.
+- La calibración de color, centro de servos y asistente de ejes sigue en la
+  ventana OpenCV.
 - `tilt_source` queda en `"command"`: la inclinación estimada con una cámara
   monocular sin calibración de intrínsecos no es confiable. Está marcada como
   TODO-HW.
@@ -62,11 +66,13 @@ Estas diferencias están justificadas en **[PLAN.md](PLAN.md)**.
 
 Verificado en Windows 11, Python 3.12 y OpenCV 5.0:
 
-- `python -m pytest` en `pc/`: **85 pruebas pasan**.
+- `python -m pytest` en `pc/`: **87 pruebas pasan**.
 - `pio run` en `firmware/`: compila para `esp32dev`.
 - `pio test -e native`: **11 pruebas** de PID y protocolo pasan.
 - `python main.py --sim`: abre la ventana, detecta los 4 ArUco y la pelota
   converge desde 6 cm en **≈1,25 s** (tolerancia 0,5 cm; límite 12 s).
+- La Tkinter se abrió y probó en simulación: vista split, gráficas, servos
+  separados y compensación de inversión. Falta hardware real.
 - La hoja de marcadores se genera y se abre; se verificó el tamaño de impresión.
 - El instalador offline y el flasheo en `--dry-run` se probaron.
 - No se probó un ESP32, cámara, servo, LED ni buzzer reales.
@@ -98,27 +104,47 @@ luz real, calibración HSV, ajuste de ganancias y fallback de enlace.
 
 ## Inicio rápido (Windows)
 
-1. Ejecutá **`INSTALAR.bat`**. Crea `pc\.venv`, instala las dependencias y, si
-   falta Python, ofrece abrir el instalador incluido en el paquete.
-2. Conectá el ESP32 y ejecutá **`SUBIR_FIRMWARE.bat`**. Elegí el COM y confirmá.
-3. Ejecutá **`ELEGIR_DISPOSITIVOS.bat`**. Elegí cámara/URL y puerto.
-4. Ejecutá **`INICIAR.bat`** y seguí **[HARDWARE_TEST.md](HARDWARE_TEST.md)**.
-5. Sin hardware, ejecutá **`PROBAR_SIN_HARDWARE.bat`**.
+**Primera vez en la laptop:** copiá toda la carpeta a una ubicación escribible
+(no la ejecutes desde un pendrive de solo lectura) y usá estos cinco archivos:
 
-Los cinco botones son los cinco comandos para el usuario final. También se puede
-usar PowerShell:
+1. **`INSTALAR.bat`**. Crea `pc\.venv` e instala todo. Si falta Python, ofrece
+   abrir el instalador incluido en `paquete/instaladores`.
+2. Conectá el ESP32 y abrí **`FIRMWARE.bat`**. Opción 1 para grabar el binario
+   precompilado; opción 2 para compilar con PlatformIO.
+3. Abrí **`CENTRA.bat`** y elegí **Configurar cámara y puerto USB** (opción 5).
+4. Volvé a **`CENTRA.bat`** y elegí **OpenCV** (opción 1) o **Tkinter**
+   (opción 2). Seguí **[HARDWARE_TEST.md](HARDWARE_TEST.md)**.
+5. Sin hardware, elegí **Simular OpenCV** (opción 3) o **Simular Tkinter**
+   (opción 4).
+
+`CENTRA.bat` es el menú central. La opción 6 ejecuta el diagnóstico
+(`pc/tools/diagnose.py`) sin abrir la cámara.
 
 ```powershell
 .\INSTALAR.bat
-.\PROBAR_SIN_HARDWARE.bat
-.\SUBIR_FIRMWARE.bat
-.\ELEGIR_DISPOSITIVOS.bat
-.\INICIAR.bat
+.\CENTRA.bat
+.\FIRMWARE.bat
+.\CREAR_EXE.bat
+.\PREPARAR_PENDRIVE.bat
 ```
 
 > En `cmd` se puede omitir el `.\`. Si copiás el proyecto a otra PC, copiá **toda
 > la carpeta**, incluida `paquete/`, a una ubicación escribible antes de
 > instalar. `pc\.venv`, `.pio` y `.git` no se copian.
+
+### Ejecutable `.exe`
+
+`CENTRA.exe` se genera con:
+
+```powershell
+.\CREAR_EXE.bat
+```
+
+- Si PyInstaller está instalado, crea un `.exe` autocontenido.
+- Si no, crea un **lanzador** que usa `pc\.venv` (requiere la instalación).
+- `CENTRA.bat` lo detecta y lo usa automáticamente.
+- El lanzador ya está compilado en esta carpeta; el `.exe` completo requiere
+  PyInstaller, que no está incluido en el paquete offline.
 
 ---
 
@@ -171,13 +197,43 @@ No hay que descargar ZIPs ni copiar librerías a mano.
 ### Opción A: usar el firmware precompilado (recomendado en la escuela)
 
 `firmware/prebuilt/plataforma_pelota_esp32.bin` ya contiene bootloader, tabla de
-particiones y aplicación. Se graba en `0x0` con `SUBIR_FIRMWARE.bat`, que usa
+particiones y aplicación. Se graba en `0x0` con `FIRMWARE.bat`, que usa
 `esptool` y verifica el SHA256. **No requiere PlatformIO.**
 
 Si la placa no se deja grabar, mantené presionado **BOOT** al comenzar y soltá
 cuando termine la escritura.
 
-### Opción B: compilar y subir desde PlatformIO
+### ESP32-WROOM-32: compilar y subir
+
+El firmware usa la placa `esp32dev`, que es la configuración correcta para un
+**ESP32-WROOM-32** (DevKit de 30 o 38 pines, 4 MB de flash). No cambies el board
+por `esp32-s3` ni por `esp32-c3`.
+
+**Camino corto con el firmware ya compilado:** conectá la placa, ejecutá
+`FIRMWARE.bat`, elegí el COM y confirmá. El binario se graba en `0x0`.
+Si no conecta, mantené **BOOT** mientras empieza y soltá al ver
+`Connecting...`.
+
+**Camino con PlatformIO (si modificaste el firmware):**
+
+```powershell
+cd plataforma-pelota\firmware
+pio run
+pio run -t upload --upload-port COM5
+pio device monitor -b 115200
+```
+
+Cambiá `COM5` por el puerto real. El `platformio.ini` ya fija:
+
+```ini
+[env:esp32dev]
+platform = espressif32@8.0.0
+board = esp32dev
+framework = arduino
+```
+
+La primera compilación necesita internet para bajar el core de ESP32 y
+`ESP32Servo`. Después queda en caché.
 
 Con VS Code:
 
@@ -196,7 +252,7 @@ pio run -t upload
 pio device monitor -b 115200
 ```
 
-También podés usar **`COMPILAR_Y_SUBIR_CON_PLATFORMIO.bat`**. La primera
+También podés usar **`FIRMWARE.bat`**. La primera
 compilación necesita internet para descargar el core y el compilador.
 
 ---
@@ -228,6 +284,14 @@ Orden visto desde la cámara:
 Cada centro va a **10 cm** del centro de la placa (2 cm del borde de una placa
 de 24 cm). Si los pegás en otra posición, corregí `plate.marker_centers_cm` en
 `pc/config.json`.
+
+> **Si ya imprimiste otros ArUco:** no es obligatorio usar mi hoja. Por defecto
+> el software espera `DICT_4X4_50` con IDs `0,1,2,3`, pero si detecta
+> exactamente cuatro marcadores con otros IDs (por ejemplo `1,2,3,4`) los
+> asigna por posición en la imagen: TL, TR, BR, BL. Si tu generador usó otro
+> diccionario, cambiá `plate.marker_dictionary` en `pc/config.json`. El tamaño
+> físico no entra en la homografía, pero los centros sí: deben estar a ±10 cm
+> (o corregí `plate.marker_centers_cm`).
 
 Regenerar la hoja:
 
@@ -266,7 +330,7 @@ después se reporta “placa no detectada”. El control recibe `found=0`.
 1. Instalá la app en el celular y el cliente en la PC.
 2. Conectá por USB si es posible (menos latencia) o por Wi-Fi.
 3. Iniciá la app y verificá que la PC vea la cámara virtual.
-4. Ejecutá `ELEGIR_DISPOSITIVOS.bat` y elegí la cámara virtual; el índice
+4. Ejecutá `CENTRA.bat` y elegí la cámara virtual; el índice
    suele ser 1 o 2.
 
 ### IP Webcam
@@ -279,7 +343,7 @@ después se reporta “placa no detectada”. El control recibe `found=0`.
 ### Selector de dispositivos
 
 - Se abre en el primer arranque real, con la tecla **D** o con
-  `ELEGIR_DISPOSITIVOS.bat`.
+  `CENTRA.bat`.
 - Lista índices de cámara, permite una URL y lista los puertos COM con su
   descripción.
 - `AUTODETECTAR` prueba los puertos y busca el que responde `HELLO`.
@@ -290,12 +354,68 @@ la ventana principal. Si el índice no funciona, probá otro.
 
 ---
 
-## 5. Uso de la interfaz
+## 5. Uso de las interfaces
 
-La interfaz es una sola ventana OpenCV con video, overlay, panel y trackbars.
-No hay pestañas tkinter.
+Hay dos interfaces y comparten el mismo núcleo de visión, serial y control:
 
-### Vista de prueba
+| Versión | Abrir | Característica |
+|---|---|---|
+| OpenCV (principal) | `CENTRA.bat`, opción 1 | Overlay, teclas, trackbars, calibradores |
+| Tkinter (nueva) | `CENTRA.bat`, opción 2 | Cámara, plataforma 2D y gráficas en vivo |
+
+En simulación, `CENTRA.bat`, opción 3 (OpenCV) u opción 4 (Tkinter):
+
+```powershell
+.\CENTRA.bat
+```
+
+El `.exe` también acepta `--tk`:
+
+```powershell
+.\CENTRA.exe --tk
+```
+
+La interfaz Tkinter usa el selector de cámara/COM y el calibrador de color de
+OpenCV cuando hace falta; el núcleo y el control son los mismos. La ventana es
+redimensionable, con scroll en los controles y vista split.
+
+### Interfaz Tkinter
+
+![Interfaz CENTRA Tkinter](docs/captura_centra.png)
+
+- **Vista split:** cámara/ArUco y plataforma 2D al mismo tiempo.
+- **Cámara:** video en vivo adaptado al tamaño de la ventana.
+- **Plataforma 2D:** pelota, setpoint e inclinación.
+- **Gráficas:** error, tilt y servos juntos en una pestaña; **Servos X/Y
+  separados** en otra.
+- **Datos:** últimas líneas y carpeta de CSV.
+- **Control:** modos, paro, Kp/Ki/Kd, setpoint X/Y manual e inversión X/Y.
+- **Resolución:** la ventana se abre según el tamaño de la pantalla; el panel
+  derecho tiene scroll y no se esconden botones. **F11** alterna pantalla
+  completa. **Pantalla 2** mueve la ventana al monitor de la derecha.
+- Clic en la cámara o en la plataforma 2D para fijar el setpoint.
+
+La Tkinter se probó en simulación (split, gráficas y servos separados). Falta
+probarla con hardware real. Si algo falla, la opción 1 de `CENTRA.bat` (OpenCV)
+sigue disponible.
+
+Qué significa cada control:
+
+- **Kp/Ki/Kd:** ganancias del PID, no drivers ni cámaras. `Kp` corrige el error
+  actual, `Ki` acumula el error y `Kd` amortigua. Se envían al ESP32 en vivo con
+  `G,B`. Si son demasiado grandes, la placa oscila.
+- **Guardar ajustes en el ESP32:** guarda Kp/Ki/Kd y los offsets de centro en la
+  memoria interna (NVS) del ESP32. No instala el driver USB.
+- **Cámara y puerto USB:** abre el selector de cámara/URL y COM. El driver
+  CH340/CP210x y la app DroidCam/Iriun se instalan en Windows aparte.
+- **Calibrar color:** abre el calibrador HSV de OpenCV.
+
+La interfaz Tkinter no reemplaza a OpenCV; si algo de la nueva falla, `CENTRA.bat`
+sigue funcionando. La calibración de **ejes** y del **centro de servos** sigue
+haciéndose desde la ventana OpenCV (`E` y `K`); la Tk comparte la visión, el
+serial y el control.
+
+### Vista de prueba OpenCV
 
 - Video en vivo con la placa, IDs, ejes X/Y, pelota, setpoint y trayectoria.
 - Panel: modo, estado, enlace, posición en cm, error, tilt, servos, ArUco,
@@ -309,7 +429,8 @@ No hay pestañas tkinter.
 1. **Color:** `C`, ajustá H/S/V y guardá.
 2. **Centro de servos:** `K`, movés los servos y guardás con `S` (envía `W`).
 3. **Ejes:** `E`, el asistente inclina la placa y te guía para observar la
-   pelota. Al final imprime los flags para `config.h`.
+   pelota. Al cerrar el mensaje aplica la inversión en el software; no se
+   recompila.
 4. **Ganancias:** trackbars Kp/Ki/Kd; se envían en vivo con `G,B`.
 5. **Guardar:** `W` guarda ganancias y offsets en el ESP32 y sincroniza el PID
    en `config.json`.
@@ -334,6 +455,7 @@ No hay pestañas tkinter.
 | `E` | Asistente de ejes guiado. |
 | `K` | Calibrar centro de servos. |
 | `D` | Elegir cámara/URL y puerto COM. |
+| `X` / `Y` | Invertir servo X/Y en el software. |
 | Flechas | Inclinar en manual. |
 | Clic | Definir setpoint. |
 
@@ -354,6 +476,25 @@ No hay pestañas tkinter.
 
 El protocolo completo, campos de `T`, rangos y signos está en
 **[docs/protocol.md](docs/protocol.md)**.
+
+### Sentido de los servos (se corrige en el software)
+
+Cada servo tiene un sentido mecánico. La convención es:
+
+- `tilt_x > 0` debe hacer que la pelota ruede hacia la **derecha** (+X).
+- `tilt_y > 0` debe hacer que ruede hacia **arriba** (+Y).
+
+Si un eje tira al revés, **no hay que recompilar**:
+
+- En OpenCV, presioná **X** o **Y** para invertir ese servo en vivo.
+- En Tkinter, marcá **Invertir X** o **Invertir Y** en el panel derecho.
+- El asistente **E** mide con +2° y, al cerrar el mensaje, aplica la inversión.
+
+La PC espeja las coordenadas que manda al ESP32 (`P` y `S`) para que el lazo
+quede estable. El firmware sigue igual. Los flags quedan guardados en
+`control.invert_x/y` y en `simulation.servo.invert_x/y`; **el firmware no se
+recompila**. `W` se usa para guardar ganancias/offsets en el ESP32. El centro se
+ajusta aparte con **K** y los offsets.
 
 ### `tilt_source`
 
@@ -376,7 +517,7 @@ En `pc/config.json`:
 python main.py --sim
 ```
 
-o `PROBAR_SIN_HARDWARE.bat`.
+o `CENTRA.bat`.
 
 La simulación:
 
@@ -452,7 +593,8 @@ pio run
 - No alimentes los servos desde el ESP32.
 - Verificá GPIO 18/19 y el pulso de 500–2400 µs.
 - Ajustá el centro con **K**.
-- Si el sentido está mal, usá **E** y recompilá `SERVO_INVERT_X/Y`.
+- Si el sentido está mal, invertí el eje con **X/Y** (OpenCV), la casilla de
+  Tkinter o el asistente **E**. No hace falta recompilar.
 
 ### El puerto COM no aparece
 
@@ -475,7 +617,7 @@ No instales los dos paquetes a la vez.
 ### La app se abre sin cámara
 
 La ventana muestra “Esperando imagen”; el hilo de cámara reintenta. Revisá el
-selector **D** o ejecutá `--sim`. No se bloquea.
+menú **Configurar cámara y puerto USB** o abrí una simulación. No se bloquea.
 
 ---
 
@@ -483,11 +625,15 @@ selector **D** o ejecutá `--sim`. No se bloquea.
 
 ```
 plataforma-pelota/
-├── INSTALAR.bat / INICIAR.bat / SUBIR_FIRMWARE.bat
-├── ELEGIR_DISPOSITIVOS.bat / PROBAR_SIN_HARDWARE.bat
-├── COMPILAR_Y_SUBIR_CON_PLATFORMIO.bat
+├── INSTALAR.bat
+├── CENTRA.bat                 (menú: apps, simulaciones, config, verificación)
+├── FIRMWARE.bat               (menú: grabar/compilar/monitor)
+├── CREAR_EXE.bat
 ├── PREPARAR_PENDRIVE.bat
+├── LLEGAR_A_LA_ESCUELA.txt
+├── CENTRA.exe                 (generado por CREAR_EXE.bat)
 ├── LEEME_PRIMERO.txt
+├── LICENCIA.txt
 ├── GUIA_PENDRIVE.md
 ├── HARDWARE_TEST.md
 ├── PLAN.md
@@ -505,12 +651,14 @@ plataforma-pelota/
 │   ├── test/test_core/test_core.cpp
 │   └── prebuilt/plataforma_pelota_esp32.bin
 ├── pc/
-│   ├── main.py / camera.py / markers.py / vision.py
+│   ├── main.py / tk_app.py / camera.py / markers.py / vision.py
 │   ├── serial_link.py / protocol.py / logger.py / sim.py
 │   ├── gui.py / calibration.py / config.json
 │   ├── devices.py
 │   ├── tools/flash_firmware.py
+│   ├── tools/diagnose.py
 │   ├── tools/generate_aruco_sheet.py
+│   ├── tools/requirements-build.txt
 │   └── tests/
 ├── windows/
 │   ├── instalar.ps1
@@ -530,3 +678,8 @@ plataforma-pelota/
 - No hay IMU; la inclinación mostrada es la comandada.
 - El sistema no hace rebotar la pelota: solo estabiliza.
 - Las pruebas con hardware real siguen pendientes.
+
+---
+
+© 2026 CENTRA · ÁGUILAS IMPERIALES. Todos los derechos reservados.
+Ver **[LICENCIA.txt](LICENCIA.txt)**.

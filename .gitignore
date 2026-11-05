@@ -13,6 +13,15 @@ pc/logs/*.png
 .piolibdeps/
 # Paquete offline generado para pendrive
 paquete/
+# Ejecutable generado con CREAR_EXE.bat
+build/
+dist/
+PlataformaPelota.spec
+CENTRA.spec
+/PlataformaPelota.exe
+/CENTRA.exe
+/config.json
+/logs/
 # Archivos de prueba locales
 screenshot*.png
 pc/smoke_*.txt

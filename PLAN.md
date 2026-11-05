@@ -1,4 +1,4 @@
-# PLAN — Plataforma estabilizadora de pelota
+# PLAN — CENTRA · ÁGUILAS IMPERIALES · Plataforma estabilizadora de pelota
 
 ## 1. Objetivo
 
@@ -34,7 +34,7 @@ markers.py: píxel → cm (origen en el centro, +X derecha, +Y arriba)
 ESP32: PID 100 Hz en cm → tilt ±8° → servo 56..124°
    │  T,ms,x,y,err,tilt,servo,estado  (25 Hz)
    ▼
-GUI OpenCV + logger CSV
+GUI OpenCV o Tkinter + logger CSV
 ```
 
 Módulos de la PC:
@@ -44,6 +44,7 @@ Módulos de la PC:
 - `vision.py`: detección HSV de la pelota dentro de la placa.
 - `serial_link.py`: autodetección por `HELLO`, lector no bloqueante, cola.
 - `gui.py`: ventana OpenCV, overlay, teclas, trackbars, calibradores.
+- `tk_app.py`: interfaz Tkinter responsive, vista split, gráficas y datos.
 - `calibration.py`: color HSV, centro de servos y asistente de ejes guiado.
 - `sim.py`: cámara sintética con ArUco, física en cm y FakeESP32.
 - `logger.py`: CSV de telemetría.
@@ -66,7 +67,10 @@ Módulos de la PC:
 | H | Autorrevisión de signos, límites e hilos | Completada | Correcciones |
 | I | Selector visual de cámara y puerto | Completada | Selector y tests |
 | J | Instalador, firmware precompilado y pendrive | Completada | Instalador offline y dry-run |
-| K | Migración híbrida a ArUco + cm | Completada | 85 tests, `pio run`, simulación estable |
+| K | Migración híbrida a ArUco + cm | Completada | 87 tests pasan; `pio run` y simulación estable |
+| L | Ejecutable `CENTRA.exe` | Lanzador compilado | Abre la app vía `pc\.venv`; el `.exe` autocontenido requiere PyInstaller, que no se instaló |
+| M | Llegada a la escuela: instalación + diagnóstico | Completada | `INSTALAR.bat`, `CENTRA.bat`, `FIRMWARE.bat` y auto-IDs |
+| N | Interfaz Tkinter con cámara, plataforma 2D y gráficas | Completada y probada en simulación | Split, gráficas juntas/separadas, inversión, ventana adaptable; falta hardware |
 
 ## 4. Supuestos y decisiones
 
@@ -85,12 +89,14 @@ Módulos de la PC:
 5. **Tilt.** `tilt_source="command"` es el valor validado. La estimación de
    inclinación desde los marcadores necesita intrínsecos de cámara y `solvePnP`;
    queda como TODO-HW. No se usa para el lazo.
-6. **Interfaz.** Se conserva OpenCV en lugar de tkinter+matplotlib para no
-   reescribir una UI ya probada. La app tiene vista de prueba, configuración y
-   control en una sola ventana.
+6. **Interfaces.** OpenCV queda como interfaz principal y respaldo probado. Se
+   agregó una Tkinter opcional con cámara, plataforma 2D, gráficas y datos, que
+   comparte el mismo núcleo. Se probó en simulación; su calibración de ejes y
+   centro de servos sigue en OpenCV.
 7. **Asistente de ejes.** Es guiado (observar el sentido de la pelota), no
    automático por ArUco. La deducción automática con una cámara monocular sin
-   calibración no es confiable.
+   calibración no es confiable. La inversión se aplica por software (espejando
+   P/S en la PC), sin recompilar el firmware.
 8. **Tolerancia de simulación.** 0.5 cm, no 0.05 cm. A 640×480 y ~40 cm, 0.05 cm
    equivale a poco más de un píxel. La simulación converge en ≈1.25 s.
 9. **Comando C.** Se conserva como extensión del protocolo, aunque el documento
@@ -107,7 +113,7 @@ Verificado en Windows 11, Python 3.12, OpenCV 5.0, PlatformIO 6.2:
 
 | Prueba | Resultado |
 |---|---|
-| `python -m pytest -q` desde `pc/` | **85 passed** |
+| `python -m pytest -q` desde `pc/` | **87 passed** |
 | `pio test -e native` | **11/11** |
 | `pio run` para `esp32dev` | **SUCCESS** |
 | Simulación ArUco + PID | converge en **≈1.25 s**, tolerancia 0.5 cm |
@@ -119,11 +125,20 @@ Verificado en Windows 11, Python 3.12, OpenCV 5.0, PlatformIO 6.2:
 Lo que **no** se probó: ESP32 real, cámara real, servos, LED, buzzer, drivers USB,
 grabación por COM, luz del aula y detección ArUco física.
 
+`CENTRA.exe` quedó compilado como **lanzador** que usa `pc\.venv`. El `.exe`
+autocontenido requiere PyInstaller; la instalación de PyInstaller no terminó en
+este entorno, así que `CREAR_EXE.bat` cae al lanzador. En una PC con
+PyInstaller instalado genera el `.exe` completo.
+
+La interfaz **Tkinter** se ejecutó en simulación (split, gráficas y servos
+separados). La interfaz OpenCV sigue siendo la principal y no fue reemplazada.
+
 ## 6. Pendientes de hardware
 
 - Ver `HARDWARE_TEST.md` (8 pruebas en orden).
 - Compensar el centro mecánico con los offsets.
-- Determinar `SERVO_INVERT_X/Y` con el asistente.
+- Probar la inversión X/Y desde el software en los servos reales; dejar
+  `SERVO_INVERT_X/Y` de `config.h` en false.
 - Calibrar HSV con la cámara real.
 - Ajustar Kp/Ki/Kd y validar en las cuatro esquinas.
 - Verificar el patrón de LED/buzzer y la alimentación de los servos.
@@ -143,11 +158,11 @@ grabación por COM, luz del aula y detección ArUco física.
 
 ## 8. Fuera de alcance de esta entrega
 
-- Interfaz tkinter+matplotlib con pestañas.
 - Estimación de inclinación desde ArUco (`tilt_source="markers"`).
 - Asistente de ejes totalmente automático.
 - Fusión con IMU (no hay IMU).
-- Gráficas embebidas en tiempo real; el CSV se puede graficar con
-  `pc/tools/plot_log.py`.
+- Segunda interfaz Tkinter: opcional y probada en simulación; la versión OpenCV
+  es la principal. Incluye vista split, cámara, plataforma 2D, gráficas juntas y
+  separadas, datos, inversión y controles adaptables.
 
 Estas tareas se pueden agregar después sin romper el núcleo ArUco/cm.

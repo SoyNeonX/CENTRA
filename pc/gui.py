@@ -89,17 +89,23 @@ class BallPlateGUI:
         config_path: str | Path,
         initial_mode: int = 0,
         simulation_mode: bool = False,
+        simulation=None,
     ):
         self.config = config
         self.link = link
         self.config_path = Path(config_path)
         self.mode = int(initial_mode) if initial_mode in (0, 1, 2) else 0
         self.simulation_mode = bool(simulation_mode)
+        self.simulation = simulation
         self.running = True
         self.restart_requested = False
+        self.invert_x = bool(config["control"].get("invert_x", False))
+        self.invert_y = bool(config["control"].get("invert_y", False))
 
         gui_config = config.get("gui", {})
-        self.window = str(gui_config.get("window_name", "Ball and plate"))
+        self.window = str(
+            gui_config.get("window_name", "AGUILAS IMPERIALES - Plataforma Pelota")
+        )
         self._window_created = False
 
         self.setpoint_x = float(config["control"].get("setpoint_x_cm", 0.0))
@@ -200,7 +206,13 @@ class BallPlateGUI:
         )
 
     def _send_setpoint(self) -> None:
-        self.link.send(format_setpoint(self.setpoint_x, self.setpoint_y))
+        # Si el eje está invertido, el firmware recibe coordenadas espejadas.
+        # El PID sigue siendo estable y la placa corrige el sentido físico.
+        sign_x = -1.0 if self.invert_x else 1.0
+        sign_y = -1.0 if self.invert_y else 1.0
+        self.link.send(
+            format_setpoint(self.setpoint_x * sign_x, self.setpoint_y * sign_y)
+        )
 
     # --------------------------------------------------------------- eventos --
     def process_events(self) -> None:
@@ -249,9 +261,18 @@ class BallPlateGUI:
 
         if self.assistant is not None:
             if self.assistant.done:
-                self.assistant = None
-                self._message = "Asistente de ejes cerrado."
+                inv_x = self.assistant.invert_x
+                inv_y = self.assistant.invert_y
+                if inv_x is not None and inv_y is not None:
+                    self._apply_servo_inversion(inv_x, inv_y, save=True)
+                    self._message = (
+                        "Inversión aplicada y guardada en config.json. "
+                        "W guarda ganancias/offsets en el ESP32."
+                    )
+                else:
+                    self._message = "Asistente de ejes cerrado."
                 self._message_color = (200, 200, 200)
+                self.assistant = None
                 return
             if key in ("left", "right", "up", "down", "enter", "escape"):
                 self.assistant.handle_key(key)
@@ -303,6 +324,10 @@ class BallPlateGUI:
                 self._calibrate_servo_center()
             elif key == "d":
                 self._configure_devices()
+            elif key == "x":
+                self._toggle_servo_inversion("x")
+            elif key == "y":
+                self._toggle_servo_inversion("y")
             elif key in ("left", "right", "up", "down"):
                 self._move_manual(key)
         except (cv2.error, ValueError, OSError) as exc:
@@ -416,18 +441,44 @@ class BallPlateGUI:
             "Si no detecta bien, probá otra luz o ajustá área/circularidad."
         )
 
+    def _apply_servo_inversion(self, inv_x: bool, inv_y: bool, save: bool = False) -> None:
+        """Invierte ejes en la PC: no requiere recompilar el firmware."""
+        self.invert_x = bool(inv_x)
+        self.invert_y = bool(inv_y)
+        self.config["control"]["invert_x"] = self.invert_x
+        self.config["control"]["invert_y"] = self.invert_y
+        servo = self.config["simulation"]["servo"]
+        servo["invert_x"] = self.invert_x
+        servo["invert_y"] = self.invert_y
+        if self.simulation is not None:
+            self.simulation.fake.servo_config["invert_x"] = self.invert_x
+            self.simulation.fake.servo_config["invert_y"] = self.invert_y
+        self._send_setpoint()
+        if save:
+            self._save_config()
+
+    def _toggle_servo_inversion(self, axis: str) -> None:
+        axis = axis.lower()
+        inv_x = not self.invert_x if axis == "x" else self.invert_x
+        inv_y = not self.invert_y if axis == "y" else self.invert_y
+        self._apply_servo_inversion(inv_x, inv_y, save=True)
+        self._show_message(
+            f"Inversión X={'ON' if inv_x else 'OFF'}  "
+            f"Y={'ON' if inv_y else 'OFF'} aplicada y guardada en config.json. "
+            "No hace falta recompilar; W guarda ganancias/offsets en el ESP32."
+        )
+
     def _start_axis_assistant(self) -> None:
         if not self.link.connected:
             self._show_message(
                 "Conectá el ESP32 para usar el asistente de ejes.", error=True
             )
             return
-        servo_config = self.config["simulation"]["servo"]
         self.assistant = AxisAssistant(
             self.link,
             tilt_deg=2.0,
-            current_invert_x=bool(servo_config.get("invert_x", False)),
-            current_invert_y=bool(servo_config.get("invert_y", False)),
+            current_invert_x=self.invert_x,
+            current_invert_y=self.invert_y,
         )
         self.assistant.start()
         self.mode = 1
@@ -437,7 +488,7 @@ class BallPlateGUI:
         if self.simulation_mode:
             self._show_message(
                 "En simulacion no hay camara ni puerto reales. "
-                "Cerra esta ventana y usa ELEGIR_DISPOSITIVOS.bat."
+                "Cerra esta ventana y usa CENTRA.bat, opción 5."
             )
             return
         try:
@@ -695,7 +746,17 @@ class BallPlateGUI:
         cv2.rectangle(overlay, (0, 0), (width, panel_height), (0, 0, 0), -1)
         cv2.addWeighted(overlay, 0.62, image, 0.38, 0, image)
 
-        line1 = f"MODO: {mode_name}   ESTADO: {state_name}   LINK: {link_text}"
+        inv_text = ""
+        if self.invert_x or self.invert_y:
+            inv_text = (
+                "   INV:"
+                + ("X" if self.invert_x else "")
+                + ("Y" if self.invert_y else "")
+            )
+        line1 = (
+            f"MODO: {mode_name}   ESTADO: {state_name}   LINK: {link_text}"
+            f"{inv_text}"
+        )
         cv2.putText(image, _ascii(line1), (8, 20), cv2.FONT_HERSHEY_SIMPLEX,
                     0.48, (255, 255, 255), 1, cv2.LINE_AA)
 
@@ -707,13 +768,18 @@ class BallPlateGUI:
             marker_text = f"arUco {pose.marker_count()}/4"
 
         if telemetry is not None:
+            sign_x = -1.0 if self.invert_x else 1.0
+            sign_y = -1.0 if self.invert_y else 1.0
             line2 = (
-                f"PELOTA x={telemetry.x:+.2f} y={telemetry.y:+.2f} cm   "
+                f"PELOTA x={telemetry.x * sign_x:+.2f} "
+                f"y={telemetry.y * sign_y:+.2f} cm   "
                 f"SP x={self.setpoint_x:+.2f} y={self.setpoint_y:+.2f} cm"
             )
             line3 = (
-                f"ERR x={telemetry.err_x:+.2f} y={telemetry.err_y:+.2f} cm   "
-                f"TILT x={telemetry.tilt_x:+.2f} y={telemetry.tilt_y:+.2f} deg"
+                f"ERR x={telemetry.err_x * sign_x:+.2f} "
+                f"y={telemetry.err_y * sign_y:+.2f} cm   "
+                f"TILT x={telemetry.tilt_x * sign_x:+.2f} "
+                f"y={telemetry.tilt_y * sign_y:+.2f} deg"
             )
             line4 = (
                 f"SERVO x={telemetry.servo_x:.1f} y={telemetry.servo_y:.1f}   "
@@ -773,8 +839,8 @@ class BallPlateGUI:
         cv2.rectangle(overlay, (0, height - 58), (width, height), (0, 0, 0), -1)
         cv2.addWeighted(overlay, 0.65, image, 0.35, 0, image)
         lines = [
-            "Q salir | ESPACIO paro | 1 manual | 2 auto | C color HSV | W guardar ESP32",
-            "D camara/puerto | E ejes | K centro servos | flechas | clic setpoint en cm",
+            "CENTRA | Q salir | ESPACIO paro | 1 manual | 2 auto",
+            "C color | W guardar | D camara | E ejes | K centro | X/Y invertir | clic setpoint",
         ]
         for index, text in enumerate(lines):
             cv2.putText(

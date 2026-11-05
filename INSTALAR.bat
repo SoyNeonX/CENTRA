@@ -3,7 +3,7 @@ setlocal
 cd /d "%~dp0"
 echo.
 echo ==========================================================
-echo   INSTALADOR - PLATAFORMA ESTABILIZADORA DE PELOTA
+echo   CENTRA - INSTALADOR - AGUILAS IMPERIALES
 echo ==========================================================
 echo.
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0windows\instalar.ps1"
@@ -15,6 +15,6 @@ if not "%RESULT%"=="0" (
     pause
     exit /b %RESULT%
 )
-echo Listo. Ahora podes usar INICIAR.bat o el acceso directo del escritorio.
+echo Listo. Ahora podes usar CENTRA.bat o el acceso directo del escritorio.
 pause
 exit /b 0

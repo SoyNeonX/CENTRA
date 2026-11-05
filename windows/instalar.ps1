@@ -57,7 +57,8 @@ function Get-PythonInfo {
 
 Write-Host ""
 Write-Host "============================================================" -ForegroundColor DarkCyan
-Write-Host "  PLATAFORMA ESTABILIZADORA DE PELOTA - INSTALACION EN WINDOWS" -ForegroundColor White
+Write-Host "  CENTRA - PLATAFORMA ESTABILIZADORA DE PELOTA" -ForegroundColor White
+Write-Host "  Equipo AGUILAS IMPERIALES - INSTALACION EN WINDOWS" -ForegroundColor White
 Write-Host "============================================================" -ForegroundColor DarkCyan
 Write-Host "  No hace falta ser administrador. No se necesita GPU."
 
@@ -210,10 +211,10 @@ if ($hasWheels) {
 Write-Ok "OpenCV, NumPy, pyserial y esptool instalados"
 
 Write-Step "Verificando la instalacion"
-$check = "import cv2, numpy, serial, esptool; assert hasattr(cv2, 'aruco'), 'OpenCV sin modulo aruco'; print('OpenCV', cv2.__version__); print('ArUco OK'); print('NumPy', numpy.__version__); print('pyserial', serial.__version__)"
+$check = "import cv2, numpy, serial, esptool; import tkinter, matplotlib; from PIL import Image; assert hasattr(cv2, 'aruco'), 'OpenCV sin modulo aruco'; print('OpenCV', cv2.__version__); print('ArUco OK'); print('NumPy', numpy.__version__); print('pyserial', serial.__version__); print('Tk', tkinter.TkVersion); print('matplotlib', matplotlib.__version__)"
 & $venvPython -c $check
 if ($LASTEXITCODE -ne 0) {
-    Write-Host "    ERROR: alguna dependencia no se puede importar o falta ArUco." -ForegroundColor Red
+    Write-Host "    ERROR: alguna dependencia no se puede importar o falta ArUco/Tkinter." -ForegroundColor Red
     Write-Host "    Ejecuta PREPARAR_PENDRIVE.bat de nuevo para regenerar los wheels." -ForegroundColor Yellow
     exit 1
 }
@@ -233,19 +234,23 @@ if (Test-Path $firmware) {
     }
 } else {
     Write-Host "    AVISO: no se encontro el firmware precompilado." -ForegroundColor Yellow
-    Write-Host "    Igual podes compilarlo con COMPILAR_Y_SUBIR_CON_PLATFORMIO.bat." -ForegroundColor Yellow
+    Write-Host "    Igual podes compilarlo con FIRMWARE.bat." -ForegroundColor Yellow
 }
 
 Write-Step "Creando acceso directo en el escritorio"
 try {
     $desktop = [Environment]::GetFolderPath("Desktop")
-    $shortcutPath = Join-Path $desktop "Plataforma Pelota.lnk"
+    $oldShortcut = Join-Path $desktop "Plataforma Pelota.lnk"
+    if (Test-Path $oldShortcut) {
+        Remove-Item -LiteralPath $oldShortcut -Force
+    }
+    $shortcutPath = Join-Path $desktop "CENTRA.lnk"
     $shell = New-Object -ComObject WScript.Shell
     $shortcut = $shell.CreateShortcut($shortcutPath)
-    $shortcut.TargetPath = Join-Path $root "INICIAR.bat"
+    $shortcut.TargetPath = Join-Path $root "CENTRA.bat"
     $shortcut.WorkingDirectory = $root
     $shortcut.WindowStyle = 1
-    $shortcut.Description = "Plataforma estabilizadora de pelota"
+    $shortcut.Description = "CENTRA - Plataforma estabilizadora de pelota"
     $shortcut.Save()
     Write-Ok "Acceso directo: $shortcutPath"
 } catch {
@@ -258,12 +263,12 @@ Write-Host "  INSTALACION TERMINADA" -ForegroundColor Green
 Write-Host "============================================================" -ForegroundColor Green
 Write-Host ""
 Write-Host "Siguientes pasos:" -ForegroundColor White
-Write-Host "  1. Conecta el ESP32 por USB y ejecuta SUBIR_FIRMWARE.bat" -ForegroundColor Cyan
+Write-Host "  1. Conecta el ESP32 por USB y usa FIRMWARE.bat" -ForegroundColor Cyan
 Write-Host "     (solo la primera vez o cuando actualices el firmware)."
-Write-Host "  2. Ejecuta ELEGIR_DISPOSITIVOS.bat para elegir camara y COM."
-Write-Host "  3. Ejecuta INICIAR.bat."
+Write-Host "  2. Ejecuta CENTRA.bat y elegi Configurar camara/COM."
+Write-Host "  3. En CENTRA.bat elegi OpenCV o Tkinter."
 Write-Host ""
-Write-Host "  Sin hardware podes probar ya con PROBAR_SIN_HARDWARE.bat."
+Write-Host "  Sin hardware podes probar la simulacion desde CENTRA.bat."
 Write-Host ""
 Write-Host "  Lee GUIA_PENDRIVE.md para llevar todo a la escuela." -ForegroundColor DarkGray
 Write-Host ""

@@ -122,9 +122,13 @@ La telemetría se sigue mandando en apagado/manual; en ese caso los errores vale
   de los ArUco hace la conversión de píxeles a cm.
 - `tilt_x > 0` debe acelerar la pelota hacia +X; `tilt_y > 0`, hacia +Y. El PID
   usa `error = setpoint - medición` con ganancias positivas.
-- Si el montaje físico del servo invierte el sentido, se corrige con
-  `SERVO_INVERT_X` / `SERVO_INVERT_Y` en `firmware/include/config.h`. El asistente
-  de ejes de la GUI recomienda esos valores.
+- Si el montaje físico del servo invierte el sentido, **no se recompila**:
+  la PC espeja `P` y `S` para ese eje cuando `control.invert_x` o
+  `control.invert_y` está activo. Los flags se cambian con **X/Y** en OpenCV,
+  con las casillas de Tkinter o con el asistente **E**. Dejá
+  `SERVO_INVERT_X/Y` de `config.h` en `false`; la corrección es por software.
+- La telemetría `T` y el CSV quedan en coordenadas del firmware (espejadas si
+  hay inversión). La GUI muestra la posición/error físicos al invertir.
 - `tilt_source` en `config.json` puede ser `"command"` o `"markers"`. En esta
   entrega se usa `"command"`: la inclinación que se muestra es la comandada. La
   estimación de inclinación desde ArUco con una cámara monocular sin intrínsecos

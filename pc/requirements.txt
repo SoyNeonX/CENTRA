@@ -7,5 +7,7 @@ pyserial>=3.5
 # Necesario solo para ejecutar las pruebas automatizadas
 pytest>=7.4.0
 
-# Opcional: solo para pc/tools/plot_log.py
+# Interfaz Tkinter y herramientas de gráficas.
+# tkinter viene incluido en el instalador oficial de Python para Windows.
 matplotlib>=3.7.0
+Pillow>=10.0.0

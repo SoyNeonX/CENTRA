@@ -256,9 +256,8 @@ class AxisAssistant:
     Guía no bloqueante para determinar el sentido de los servos.
 
     Se usa desde la GUI (tecla E): mueve la placa en modo manual y espera a
-    que el usuario indique hacia dónde rueda la pelota. Al final recomienda
-    los valores de SERVO_INVERT_X / SERVO_INVERT_Y para config.h. No puede
-    escribirlos en el firmware porque son constantes de compilación.
+    que el usuario indique hacia dónde rueda la pelota. Al final la GUI
+    aplica la inversión en el software de la PC; no se recompila el firmware.
     """
 
     def __init__(
@@ -339,18 +338,16 @@ class AxisAssistant:
             self.link.send(format_tilt(0.0, 0.0))
             self.link.send(format_mode(0))
             self.message = (
-                "Listo. Poné en firmware/include/config.h y recompilá: "
-                f"SERVO_INVERT_X = {'true' if self.invert_x else 'false'}, "
-                f"SERVO_INVERT_Y = {'true' if self.invert_y else 'false'}"
+                "Listo. La app aplicará la inversión al cerrar este mensaje. "
+                f"X={'ON' if self.invert_x else 'OFF'}, "
+                f"Y={'ON' if self.invert_y else 'OFF'}. No recompiles."
             )
-            print("\n[ejes] Recomendación para config.h:")
-            print(f"[ejes]   #define SERVO_INVERT_X {'true' if self.invert_x else 'false'}")
-            print(f"[ejes]   #define SERVO_INVERT_Y {'true' if self.invert_y else 'false'}")
+            print("\n[ejes] Inversión calculada para el software de la PC:")
+            print(f"[ejes]   invert_x = {'true' if self.invert_x else 'false'}")
+            print(f"[ejes]   invert_y = {'true' if self.invert_y else 'false'}")
             print(
-                "[ejes] Tomado de los flags actuales en config.json "
-                f"(X={self.current_invert_x}, Y={self.current_invert_y}).\n"
-                "[ejes] Después de recompilar, actualizá también "
-                "simulation.servo.invert_x/y en config.json.\n"
+                "[ejes] Se aplica a control.invert_x/y y simulation.servo.invert_x/y."
+                " No requiere PlatformIO.\n"
             )
 
     def overlay_lines(self) -> list[str]:
@@ -366,9 +363,9 @@ class AxisAssistant:
             return [
                 "ASISTENTE DE EJES - PASO 1/2: X",
                 (
-                    "Flags actuales en config.json: "
-                    f"X={'true' if self.current_invert_x else 'false'}, "
-                    f"Y={'true' if self.current_invert_y else 'false'}."
+                    "Inversión actual en el software: "
+                    f"X={'ON' if self.current_invert_x else 'OFF'}, "
+                    f"Y={'ON' if self.current_invert_y else 'OFF'}."
                 ),
                 f"La placa se inclinó +{self.tilt_deg:.1f}° en X.",
                 "Si la pelota rueda a la DERECHA: flecha DERECHA.",

@@ -1,4 +1,6 @@
-# Guía: llevar el proyecto a la escuela en un pendrive
+# CENTRA — Guía para llevar el proyecto en un pendrive
+
+**ÁGUILAS IMPERIALES**
 
 Esta guía responde las dudas típicas de transporte:
 
@@ -16,12 +18,11 @@ La carpeta completa del proyecto:
 ```
 plataforma-pelota/
 ├── INSTALAR.bat
-├── INICIAR.bat
-├── ELEGIR_DISPOSITIVOS.bat
-├── SUBIR_FIRMWARE.bat
-├── PROBAR_SIN_HARDWARE.bat
-├── COMPILAR_Y_SUBIR_CON_PLATFORMIO.bat
+├── CENTRA.bat                 (menú principal)
+├── FIRMWARE.bat               (menú del ESP32)
+├── CREAR_EXE.bat
 ├── PREPARAR_PENDRIVE.bat
+├── LLEGAR_A_LA_ESCUELA.txt
 ├── README.md
 ├── GUIA_PENDRIVE.md          <- este archivo
 ├── HARDWARE_TEST.md
@@ -67,7 +68,7 @@ ejecuta el firmware compilado.
 
 **No, si solo vas a usar el firmware ya compilado.** El proyecto incluye
 `firmware/prebuilt/plataforma_pelota_esp32.bin`, que contiene bootloader,
-tabla de particiones y aplicación. `SUBIR_FIRMWARE.bat` lo graba con `esptool`
+tabla de particiones y aplicación. `FIRMWARE.bat` lo graba con `esptool`
 sin PlatformIO.
 
 **Sí, si vas a modificar `config.h` o el código del firmware en la escuela.**
@@ -163,9 +164,9 @@ Antes de usar la cámara:
 
 ### Paso 3: instalar la aplicación
 
-Doble clic en:
-
-**`INSTALAR.bat`**
+**Primero:** doble clic en **`INSTALAR.bat`** (una sola vez).
+Después: **`CENTRA.bat`** es el menú para abrir OpenCV, Tkinter, simulaciones,
+configurar cámara/COM y verificar.
 
 El instalador:
 
@@ -174,9 +175,16 @@ El instalador:
 - Instala OpenCV contrib (ArUco), NumPy, pyserial, pytest, matplotlib y esptool.
 - Verifica las importaciones.
 - Comprueba el SHA256 del firmware precompilado.
-- Crea un acceso directo **Plataforma Pelota** en el escritorio.
+- Crea un acceso directo **CENTRA** en el escritorio (apunta a `CENTRA.bat`).
 
 Si no hay `paquete\wheels`, intenta descargar todo desde internet.
+
+### Paso 3.1: ejecutable (opcional)
+
+Si querés un ejecutable, ejecutá `CREAR_EXE.bat`. Si PyInstaller está instalado
+deja un `CENTRA.exe` autocontenido; si no, deja un lanzador que usa `pc\.venv`.
+`CENTRA.bat` lo detecta automáticamente. `FIRMWARE.bat` necesita el entorno
+instalado o PlatformIO.
 
 ### Paso 4: drivers del USB y conectar el ESP32
 
@@ -192,7 +200,7 @@ dispositivos debe aparecer un puerto COM nuevo.
 ### Paso 5: grabar el firmware
 
 1. Cerrá Arduino IDE, el monitor serie y cualquier programa que use el COM.
-2. Ejecutá **`SUBIR_FIRMWARE.bat`**.
+2. Ejecutá **`FIRMWARE.bat`**.
 3. Elegí el número del puerto COM del ESP32.
 4. Confirmá con `S`.
 5. Si no entra en modo grabación, mantené presionado **BOOT** al comenzar y
@@ -203,7 +211,7 @@ PlatformIO.
 
 ### Paso 6: elegir cámara y puerto
 
-Ejecutá **`ELEGIR_DISPOSITIVOS.bat`**.
+Ejecutá **`CENTRA.bat`** y elegí **Configurar cámara y puerto USB** (opción 5).
 
 - **Cámara:** elegí el índice 0, 1, 2... según DroidCam/Iriun, o hacé clic en el
   campo URL y escribí una URL de IP Webcam/RTSP. Enter termina de editar la URL
@@ -217,8 +225,9 @@ aplicación se reinicia sola para abrir la cámara y el puerto nuevos.
 
 ### Paso 7: usar y probar
 
-- **`INICIAR.bat`**: abre la aplicación con cámara y ESP32 reales.
-- **`PROBAR_SIN_HARDWARE.bat`**: abre la simulación, sin cámara ni ESP32.
+- **`CENTRA.bat` opción 1**: OpenCV con cámara y ESP32 reales.
+- **`CENTRA.bat` opción 2**: Tkinter con cámara, split y gráficas.
+- **`CENTRA.bat` opción 3 u 4**: simulación OpenCV o Tkinter, sin hardware.
 
 La primera vez, dentro de la aplicación:
 
@@ -246,7 +255,7 @@ pio run -t upload
 
 O ejecutá en Windows:
 
-**`COMPILAR_Y_SUBIR_CON_PLATFORMIO.bat`**
+**`FIRMWARE.bat`**
 
 Ese botón compila el código fuente actual y lo sube. Si cambiás
 `SERVO_INVERT_X/Y`, pines, ganancias o mecánica en `config.h`:
@@ -265,12 +274,14 @@ El firmware precompilado es la versión 1.1.0, sin IMU. Si cambiás el código o
 | Archivo | Para qué sirve |
 |---|---|
 | `INSTALAR.bat` | Instala las dependencias de la PC. |
-| `INICIAR.bat` | Abre la aplicación real. |
-| `PROBAR_SIN_HARDWARE.bat` | Abre la simulación. |
-| `ELEGIR_DISPOSITIVOS.bat` | Selector de cámara, URL y puerto COM. |
-| `SUBIR_FIRMWARE.bat` | Graba el `.bin` precompilado con esptool. |
-| `COMPILAR_Y_SUBIR_CON_PLATFORMIO.bat` | Compila y sube el código fuente; requiere PlatformIO. |
+| `CENTRA.bat` | Menú: OpenCV, Tkinter, simulaciones, cámara/COM y diagnóstico. |
+| `FIRMWARE.bat` | Menú: grabar el `.bin`, compilar con PlatformIO o monitor serie. |
 | `PREPARAR_PENDRIVE.bat` | Descarga todo para usar sin internet. |
+| `CREAR_EXE.bat` | Crea `CENTRA.exe` (autocontenido o lanzador). |
+
+Dentro de `CENTRA.bat`:
+1. OpenCV real · 2. Tkinter real · 3. Simulación OpenCV · 4. Simulación Tkinter
+· 5. Configurar cámara/COM · 6. Verificar · 7. Firmware · 8. Salir.
 
 ## 8. Problemas frecuentes en la escuela
 
@@ -306,21 +317,22 @@ el GND común.
 ### La aplicación no ve la cámara
 
 - Instalá DroidCam/Iriun también en la PC de la escuela.
-- Probá otro índice con `ELEGIR_DISPOSITIVOS.bat`.
+- Probá otro índice con `CENTRA.bat`.
 - Para IP Webcam usá `http://IP:8080/video` y verificá que la PC y el celular
   estén en la misma red.
 - Cerrá Zoom/Teams/OBS.
 
 ### Quiero probar sin hardware
 
-Doble clic en `PROBAR_SIN_HARDWARE.bat`. Usa el FakeESP32 y una cámara sintética.
+Abrí `CENTRA.bat` y elegí la opción 3 (OpenCV) o 4 (Tkinter). Usa el FakeESP32
+y una cámara sintética.
 
 ## 9. Ventaja del firmware precompilado
 
 En la escuela solo se necesita:
 
 ```
-INSTALAR.bat -> SUBIR_FIRMWARE.bat -> ELEGIR_DISPOSITIVOS.bat -> INICIAR.bat
+INSTALAR.bat -> FIRMWARE.bat -> CENTRA.bat (opcion 5) -> CENTRA.bat (opcion 1 o 2)
 ```
 
 PlatformIO queda para la PC de desarrollo.

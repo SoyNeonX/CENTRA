@@ -1,4 +1,6 @@
-# Pruebas de hardware, en orden
+# CENTRA — Pruebas de hardware, en orden
+
+**ÁGUILAS IMPERIALES**
 
 Este proyecto se desarrolló **sin cámara, ESP32, servos, LED ni buzzer físicos**.
 Todo lo marcado `TODO-HW:` en el código y las pruebas de este archivo son
@@ -9,11 +11,11 @@ obligatorias antes de dar el proyecto por terminado.
 
 ## Antes de empezar
 
-- [ ] Firmware grabado con `SUBIR_FIRMWARE.bat`.
+- [ ] Firmware grabado con `FIRMWARE.bat`.
 - [ ] Driver CH340 o CP210x instalado.
 - [ ] Cuatro marcadores ArUco impresos, recortados con 1 cm de margen y pegados.
 - [ ] Cámara del celular fija, mirando desde arriba, con la placa completa.
-- [ ] `INSTALAR.bat` ejecutado y `ELEGIR_DISPOSITIVOS.bat` configurado.
+- [ ] `INSTALAR.bat` ejecutado y `CENTRA.bat` (opción 5) configurado.
 - [ ] Fuente de 5 V apagada mientras se hacen las conexiones.
 
 La placa debe quedar libre para inclinarse. Empezá sin pelota en las pruebas 1 a 4.
@@ -26,7 +28,7 @@ Objetivo: que la placa quede nivelada con los servos en 90°.
 
 1. Encendé la fuente y conectá el ESP32. El firmware arranca **apagado** y lleva
    los servos al centro.
-2. Ejecutá `INICIAR.bat`.
+2. Ejecutá `CENTRA.bat`, opción 1 (OpenCV) u opción 2 (Tkinter).
 3. Mirá la placa de frente: debería quedar horizontal.
 4. Si está inclinada, presioná **K** en la GUI. Movés los servos con las trackbars
    y ves el resultado en la cámara/placa.
@@ -82,17 +84,19 @@ la posición en cm es estable (sin saltos de varios cm).
 
 ## Prueba 4 — Asistente de ejes
 
-Objetivo: determinar el sentido físico de X e Y (los flags de `config.h`).
+Objetivo: determinar el sentido físico de X e Y y corregirlo desde el software
+(sin tocar los flags `SERVO_INVERT_X/Y` del firmware).
 
 1. Poné la pelota en el centro y esperá a que quede quieta.
 2. Presioná **E**. El asistente inclina +2° en X y te pide observar la pelota.
 3. Si rueda a la **derecha**, presioná **→**. Si rueda a la **izquierda**, **←**.
 4. Aceptá con **ENTER** y repetí para Y: **↑** si rueda hacia arriba, **↓** si no.
-5. Anotá los valores `SERVO_INVERT_X` / `SERVO_INVERT_Y` que imprime la consola.
-6. Si hace falta, editalos en `firmware/include/config.h`, recompilá con
-   `COMPILAR_Y_SUBIR_CON_PLATFORMIO.bat` y actualizá también
-   `simulation.servo.invert_x/y` en `pc/config.json` para que la simulación
-   coincida.
+5. Al cerrar el mensaje del asistente, la app aplica la inversión **en el
+   software** (espeja `P`/`S`). No hay que recompilar.
+6. También podés invertir a mano con **X** o **Y** en OpenCV, o con las
+   casillas **Invertir X/Y** en Tkinter.
+7. Guardá con **W** si querés conservar ganancias/offsets; `config.json`
+   conserva `control.invert_x/y`.
 
 > El asistente es **guiado**: no deduce automáticamente el sentido desde la
 > imagen, porque una cámara monocular sin intrínsecos no distingue de forma
@@ -100,7 +104,7 @@ Objetivo: determinar el sentido físico de X e Y (los flags de `config.h`).
 > `PLAN.md`.
 
 **Pasa si:** al inclinar +X la pelota rueda a la derecha y al inclinar +Y rueda
-hacia arriba, con los flags nuevos.
+hacia arriba, con la inversión aplicada desde el software.
 
 ---
 

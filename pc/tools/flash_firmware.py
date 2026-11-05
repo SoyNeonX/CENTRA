@@ -1,7 +1,7 @@
 """
 Flashea el firmware precompilado en un ESP32 DevKit usando esptool.
 
-Uso normal (lo llama SUBIR_FIRMWARE.bat):
+Uso normal (lo llama FIRMWARE.bat, opción 1):
     python pc/tools/flash_firmware.py
 
 Opciones utiles:
@@ -222,8 +222,8 @@ def main(argv=None) -> int:
         print("=" * 66)
         print("  FIRMWARE GRABADO CORRECTAMENTE")
         print("=" * 66)
-        print("Desconecta y reconecta el ESP32. Despues ejecuta INICIAR.bat.")
-        print("Si la app no lo encuentra, usa ELEGIR_DISPOSITIVOS.bat.")
+        print("Desconecta y reconecta el ESP32. Despues ejecuta CENTRA.bat.")
+        print("Si la app no lo encuentra, usa CENTRA.bat, opción 5.")
         return 0
 
     print("=" * 66)

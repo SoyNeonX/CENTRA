@@ -1,22 +1,50 @@
-PLATAFORMA ESTABILIZADORA DE PELOTA - LEEME PRIMERO
-====================================================
+CENTRA - PLATAFORMA ESTABILIZADORA DE PELOTA
+=============================================
+Equipo: AGUILAS IMPERIALES - (C) 2026
 
-APLICACION EN WINDOWS
----------------------
-1. INSTALAR.bat        Instala dependencias y crea pc\.venv.
-                        Si falta Python, ofrece abrir el instalador del
-                        paquete offline.
-2. SUBIR_FIRMWARE.bat  Graba el firmware ya compilado en el ESP32.
-3. ELEGIR_DISPOSITIVOS.bat  Elige camara/URL y puerto COM.
-4. INICIAR.bat         Abre la aplicacion.
-5. PROBAR_SIN_HARDWARE.bat  Prueba sin camara ni ESP32.
+QUE ES
+------
+CENTRA estabiliza una pelota sobre una placa de 24 x 24 cm usando una camara,
+cuatro marcadores ArUco, un ESP32-WROOM y dos servos. La PC procesa la imagen,
+manda la posicion al ESP32 y el ESP32 corre el PID a 100 Hz.
 
-En la primera ejecucion real tambien se abre el selector de camara y puerto.
-Despues podes abrirlo con la tecla D.
+HAY 5 ARCHIVOS .BAT
+-------------------
+INSTALAR.bat          Primera vez: crea pc\.venv e instala las librerias.
+CENTRA.bat            Menu principal.
+FIRMWARE.bat          Menu para grabar o compilar el ESP32.
+CREAR_EXE.bat         Crea CENTRA.exe (autocontenido o lanzador).
+PREPARAR_PENDRIVE.bat Prepara el paquete offline para el pendrive.
+
+PRIMERA VEZ EN LA LAPTOP
+------------------------
+1. Copia toda la carpeta a una ubicacion escribible.
+2. Doble clic en INSTALAR.bat.
+3. Conecta el ESP32 y abre FIRMWARE.bat.
+   Opcion 1: graba el firmware precompilado.
+   Opcion 2: compila y sube con PlatformIO.
+4. Abre CENTRA.bat y elegi "Configurar camara y puerto USB".
+5. Volve a CENTRA.bat:
+   1 OpenCV con camara y ESP32
+   2 Tkinter con camara y ESP32
+   3 Simulacion OpenCV
+   4 Simulacion Tkinter
+   6 Diagnostico de instalacion
+
+Si no hay hardware, empeza por la opcion 3 o 4.
+
+CENTRA.bat TAMBIEN TIENE
+------------------------
+- Vista split en Tkinter: camara y plataforma 2D al mismo tiempo.
+- Graficas de error, tilt y servos juntos, y una pestana con servos X/Y
+  separados.
+- Setpoint X/Y editable, Kp/Ki/Kd en vivo e inversion X/Y sin recompilar.
+- Pantalla completa con F11 y boton "Pantalla 2" para el segundo monitor.
+- Boton "Que significa cada cosa?" con ayuda.
 
 MARCADORES ARUCO
 ----------------
-La placa se detecta con 4 marcadores ArUco pegados en las esquinas.
+La placa se detecta con 4 marcadores ArUco en las esquinas.
 Imprimi docs/marcadores_aruco/hoja_marcadores_A4.pdf al 100% en A4.
 Cada cuadrado negro debe medir 4 x 4 cm. Recorta dejando 1 cm de margen.
 
@@ -25,54 +53,43 @@ Orden visto desde la camara:
   ID 3 abajo-izquierda     ID 2 abajo-derecha
 
 Los centros van a 10 cm del centro de la placa (2 cm del borde).
-El programa convierte pixeles a centimetros con esos marcadores.
+El software acepta IDs 1-4 por posicion si el diccionario es DICT_4X4_50.
 Si falta un marcador, conserva la ultima pose 0.5 s y despues avisa
-"PLACA NO DETECTADA". Ya no hay que marcar una ROI a mano.
+"PLACA NO DETECTADA".
 
-PLATFORMIO
-----------
-PlatformIO compila el firmware ESP32 y lo sube por USB. El archivo
+FIRMWARE Y PLATFORMIO
+---------------------
 firmware/prebuilt/plataforma_pelota_esp32.bin ya esta compilado.
-En la escuela NO necesitas PlatformIO para grabarlo con SUBIR_FIRMWARE.bat.
-Solo lo necesitas si modificas el codigo del firmware.
+En la escuela no necesitas PlatformIO para grabarlo con FIRMWARE.bat.
+Solo lo necesitas si modificas el firmware.
 
 LIBRERIAS
 ---------
-Firmware: ESP32Servo 3.2.1 (PlatformIO la instala sola), Wire y Preferences
-(vienen con el core ESP32).
-PC: opencv-contrib-python (incluye ArUco), NumPy, pyserial, pytest y
-matplotlib, mas esptool para grabar. El instalador se encarga de todas.
+Firmware: ESP32Servo 3.2.1, Wire y Preferences.
+PC: opencv-contrib-python (ArUco), NumPy, pyserial, matplotlib, Pillow,
+pytest y esptool. El instalador se encarga.
 Para uso sin internet, ejecuta PREPARAR_PENDRIVE.bat en una PC con internet.
+CREAR_EXE.bat crea un lanzador si PyInstaller no esta instalado.
 
-CONTROLES
----------
+CONTROLES EN LA APP
+-------------------
 1 manual | 2 automatico | ESPACIO paro | C color | K centro servos
 E asistente de ejes | D camara/puerto | W guardar en ESP32 | Q salir
 Clic dentro de la placa: define el setpoint en cm.
 Flechas en manual: inclinan la placa.
+X/Y: invierten el servo correspondiente desde el software.
 
 PARA LA ESCUELA / PENDRIVE
 --------------------------
-Lee GUIA_PENDRIVE.md. Resumen:
+Lee GUIA_PENDRIVE.md y LLEGAR_A_LA_ESCUELA.txt.
+Resumen:
 - En tu PC con internet: PREPARAR_PENDRIVE.bat.
-- Copia toda la carpeta del proyecto (incluida paquete/) a un pendrive.
-- En la escuela: INSTALAR.bat, SUBIR_FIRMWARE.bat,
-  ELEGIR_DISPOSITIVOS.bat, INICIAR.bat.
-- Si la PC no tiene Python, hay un instalador en paquete/instaladores/.
+- Copia toda la carpeta (incluida paquete/) al pendrive.
+- En la escuela: INSTALAR.bat, FIRMWARE.bat, CENTRA.bat.
 
 DOCUMENTACION
 -------------
 README.md               Guia completa.
 GUIA_PENDRIVE.md        Transporte, PlatformIO, librerias y escuela.
-HARDWARE_TEST.md        Pruebas fisicas en orden.
-docs/marcadores_aruco/  Hoja para imprimir los cuatro marcadores.
-docs/wiring.md          Pines, fuente, capacitor y marcadores.
-docs/protocol.md        Protocolo serie completo (posiciones en cm).
-PLAN.md                 Decisiones, supuestos y pendientes.
-
-IMPORTANTE
-----------
-Este proyecto no se probo con hardware fisico en el entorno de desarrollo.
-Antes de usarlo con la pelota, segui HARDWARE_TEST.md.
-No alimentes los servos desde el ESP32: usa fuente externa de 5 V y GND comun.
-No hay IMU en esta version.
+LLEGAR_A_LA_ESCUELA.txt Checklist para la laptop y la escuela.
+LICENCIA.txt            Marca y derechos de AGUILAS IMPERIALES.

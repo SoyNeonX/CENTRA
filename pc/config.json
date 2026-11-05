@@ -14,24 +14,49 @@
     "auto_detect": true,
     "reconnect_delay_s": 1.0
   },
-  "setup_completed": false,
+  "setup_completed": true,
   "plate": {
     "size_cm": 24.0,
     "marker_dictionary": "DICT_4X4_50",
-    "marker_ids": [0, 1, 2, 3],
+    "marker_ids": [
+      0,
+      1,
+      2,
+      3
+    ],
     "marker_centers_cm": [
-      [-10.0, 10.0],
-      [10.0, 10.0],
-      [10.0, -10.0],
-      [-10.0, -10.0]
+      [
+        -10.0,
+        10.0
+      ],
+      [
+        10.0,
+        10.0
+      ],
+      [
+        10.0,
+        -10.0
+      ],
+      [
+        -10.0,
+        -10.0
+      ]
     ],
     "marker_size_cm": 4.0,
     "lost_timeout_s": 0.5
   },
   "tilt_source": "command",
   "vision": {
-    "hsv_lower": [5, 120, 120],
-    "hsv_upper": [20, 255, 255],
+    "hsv_lower": [
+      5,
+      120,
+      120
+    ],
+    "hsv_upper": [
+      20,
+      255,
+      255
+    ],
     "blur_kernel": 5,
     "morph_kernel": 5,
     "min_area": 150,
@@ -44,6 +69,8 @@
     "setpoint_y_cm": 0.0,
     "manual_step_deg": 1.0,
     "manual_tilt_limit_deg": 8.0,
+    "invert_x": false,
+    "invert_y": false,
     "pid": {
       "kp": 0.5,
       "ki": 0.02,
@@ -66,10 +93,22 @@
     "plate_half_size_cm": 12.0,
     "gravity_cm_s2": 981.0,
     "view_corners_normalized": [
-      [0.15, 0.32],
-      [0.85, 0.32],
-      [0.85, 0.82],
-      [0.15, 0.82]
+      [
+        0.15,
+        0.32
+      ],
+      [
+        0.85,
+        0.32
+      ],
+      [
+        0.85,
+        0.82
+      ],
+      [
+        0.15,
+        0.82
+      ]
     ],
     "servo": {
       "center_deg": 90.0,
@@ -89,7 +128,7 @@
     }
   },
   "gui": {
-    "window_name": "Plataforma estabilizadora de pelota",
+    "window_name": "CENTRA - Plataforma Pelota",
     "kp_slider_max": 500,
     "ki_slider_max": 100,
     "kd_slider_max": 500

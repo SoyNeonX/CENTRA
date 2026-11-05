@@ -361,11 +361,16 @@ class FakeESP32:
             float(self.servo_config["min_deg"]),
             float(self.servo_config["max_deg"]),
         )
+        # La inversión del servo cambia el ángulo físico, no la inclinación
+        # comandada. Para la física de la pelota hay que invertir la lectura.
+        physical_cfg = dict(servo_cfg)
+        physical_cfg["invert_x"] = False
+        physical_cfg["invert_y"] = False
         self.plate_tilt_x = tilt_from_servo_angle(
-            self.servo_x, servo_cfg, "x"
+            self.servo_x, physical_cfg, "x"
         )
         self.plate_tilt_y = tilt_from_servo_angle(
-            self.servo_y, servo_cfg, "y"
+            self.servo_y, physical_cfg, "y"
         )
 
     def _clamp_tilt(self, value: float) -> float:

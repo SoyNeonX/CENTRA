@@ -24,7 +24,7 @@ if (-not $pio) {
     Write-Host ""
     Write-Host "Este boton es solo para modificar el firmware."
     Write-Host "Para grabar el firmware ya compilado en la escuela usa:"
-    Write-Host "  SUBIR_FIRMWARE.bat"
+    Write-Host "  FIRMWARE.bat"
     Write-Host ""
     Write-Host "Para instalar PlatformIO en la PC de desarrollo:"
     Write-Host "  - Instala VS Code y la extension PlatformIO IDE, o"

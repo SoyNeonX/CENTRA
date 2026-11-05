@@ -20,7 +20,7 @@ from pathlib import Path
 
 import cv2
 from camera import CameraThread
-from config import DEFAULT_CONFIG_PATH, load_config
+from config import DEFAULT_CONFIG_PATH, ensure_default_config, load_config
 from devices import setup_devices
 from gui import BallPlateGUI
 from logger import TelemetryLogger
@@ -63,6 +63,11 @@ def parse_args(argv=None):
         "--setup-devices",
         action="store_true",
         help="abrir solo el selector visual de cámara y puerto, y salir",
+    )
+    parser.add_argument(
+        "--tk",
+        action="store_true",
+        help="usar la interfaz Tkinter con gráficas (en vez de OpenCV)",
     )
     return parser.parse_args(argv)
 
@@ -113,7 +118,11 @@ class FrameProcessor:
         if ball_cm is None:
             self.link.send_pose(0.0, 0.0, False)
         else:
-            self.link.send_pose(ball_cm[0], ball_cm[1], True)
+            # Inversión por software: se espejan las coordenadas que ve el
+            # firmware. No hace falta recompilar para corregir un servo al revés.
+            sign_x = -1.0 if self.config["control"].get("invert_x", False) else 1.0
+            sign_y = -1.0 if self.config["control"].get("invert_y", False) else 1.0
+            self.link.send_pose(ball_cm[0] * sign_x, ball_cm[1] * sign_y, True)
         return detection, ball_cm, pose
 
 
@@ -160,7 +169,7 @@ def run(config: dict, config_path: Path, args) -> int:
                 print("[main] Dispositivos guardados.")
             else:
                 print("[main] Selector cancelado; se usarán los valores actuales.")
-                print("[main] Podés abrirlo luego con la tecla D o ELEGIR_DISPOSITIVOS.bat.")
+                print("[main] Podés abrirlo luego con la tecla D o CENTRA.bat, opción 5.")
 
     try:
         # La configuración de la placa debe ser válida antes de abrir el lazo.
@@ -204,6 +213,7 @@ def run(config: dict, config_path: Path, args) -> int:
             config_path=config_path,
             initial_mode=initial_mode,
             simulation_mode=args.sim,
+            simulation=sim,
         )
 
         processor = FrameProcessor(config, link)
@@ -409,7 +419,17 @@ def run(config: dict, config_path: Path, args) -> int:
 
 def main(argv=None) -> int:
     args = parse_args(argv)
+    try:
+        ensure_default_config()
+    except OSError as exc:
+        print(f"[main] No se pudo preparar config.json: {exc}")
+        return 2
     config_path = Path(args.config).expanduser().resolve()
+
+    if args.tk:
+        from tk_app import run_tk
+
+        return run_tk(args)
 
     while True:
         try:

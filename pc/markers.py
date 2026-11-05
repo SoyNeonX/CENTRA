@@ -97,10 +97,14 @@ class MarkerTracker:
         self.marker_size_cm = float(plate.get("marker_size_cm", 4.0))
         self.lost_timeout_s = float(plate.get("lost_timeout_s", 0.5))
         self.marker_ids = tuple(int(value) for value in plate["marker_ids"])
+        self.marker_centers_list = [
+            (float(point[0]), float(point[1]))
+            for point in plate["marker_centers_cm"]
+        ]
         self.marker_centers_cm = {
-            int(marker_id): (float(point[0]), float(point[1]))
-            for marker_id, point in zip(
-                self.marker_ids, plate["marker_centers_cm"]
+            int(marker_id): center
+            for marker_id, center in zip(
+                self.marker_ids, self.marker_centers_list
             )
         }
         self.half_size_cm = self.size_cm / 2.0
@@ -131,20 +135,45 @@ class MarkerTracker:
         return corners, ids
 
     def _build_pose(self, corners, ids, now_s: float) -> PlatePose:
-        found = {}
+        detected = {}
         if ids is not None:
             for marker_id, marker_corners in zip(ids.flatten(), corners):
                 marker_id = int(marker_id)
-                if marker_id not in self.marker_centers_cm:
-                    continue
                 points = np.asarray(marker_corners, dtype=np.float32).reshape(4, 2)
-                found[marker_id] = (
+                detected[marker_id] = (
                     float(points[:, 0].mean()),
                     float(points[:, 1].mean()),
                 )
 
-        detected_ids = tuple(sorted(found.keys()))
-        if len(found) != 4:
+        detected_ids = tuple(sorted(detected.keys()))
+        configured = {
+            marker_id: detected[marker_id]
+            for marker_id in self.marker_ids
+            if marker_id in detected
+        }
+
+        if len(configured) == 4:
+            # Camino normal: los IDs configurados son los cuatro de la placa.
+            found = configured
+            image_points = [found[marker_id] for marker_id in self.marker_ids]
+            plate_points = [self.marker_centers_cm[marker_id] for marker_id in self.marker_ids]
+        elif len(detected) == 4:
+            # Tolerancia para marcadores ya impresos con otros IDs (por ejemplo
+            # 1,2,3,4). Se asignan por posición en la imagen: TL, TR, BR, BL.
+            found = detected
+            ordered = sorted(
+                found.items(), key=lambda item: (item[1][1], item[1][0])
+            )
+            top = sorted(ordered[:2], key=lambda item: item[1][0])
+            bottom = sorted(ordered[2:], key=lambda item: item[1][0])
+            image_points = [
+                top[0][1],
+                top[1][1],
+                bottom[1][1],
+                bottom[0][1],
+            ]
+            plate_points = list(self.marker_centers_list)
+        else:
             if (
                 self.last_pose is not None
                 and now_s - self.last_pose.timestamp_s <= self.lost_timeout_s
@@ -162,11 +191,6 @@ class MarkerTracker:
                 )
             return PlatePose.invalid(now_s, detected_ids)
 
-        image_points = []
-        plate_points = []
-        for marker_id in self.marker_ids:
-            image_points.append(found[marker_id])
-            plate_points.append(self.marker_centers_cm[marker_id])
         image_points = np.asarray(image_points, dtype=np.float32)
         plate_points = np.asarray(plate_points, dtype=np.float32)
 
